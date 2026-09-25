@@ -28,6 +28,9 @@ export interface QueryResultTableProps {
   executionTimeMs?: number;
   className?: string;
   compact?: boolean;
+  emphasizedRowIndices?: number[];
+  emphasizedColumns?: string[];
+  emphasizedRowVariant?: 'kept' | 'dropped';
 }
 
 function attributeType(attrType: string): SandboxAttributeType {
@@ -55,6 +58,26 @@ function compareValues(a: TupleValue, b: TupleValue, type: SandboxAttributeType)
   }
 }
 
+function rowEmphasisClass(
+  globalIndex: number,
+  emphasizedRowIndices: number[] | undefined,
+  variant: 'kept' | 'dropped'
+): string {
+  if (!emphasizedRowIndices?.includes(globalIndex)) return '';
+  if (variant === 'dropped') {
+    return 'bg-[var(--color-ember)]/10 line-through opacity-70';
+  }
+  return 'bg-[var(--color-forest)]/10';
+}
+
+function columnEmphasisClass(
+  columnName: string,
+  emphasizedColumns: string[] | undefined
+): string {
+  if (!emphasizedColumns?.includes(columnName)) return '';
+  return 'bg-[var(--color-amber)]/15';
+}
+
 export function QueryResultTable({
   schema,
   rows,
@@ -63,6 +86,9 @@ export function QueryResultTable({
   executionTimeMs,
   className,
   compact = false,
+  emphasizedRowIndices,
+  emphasizedColumns,
+  emphasizedRowVariant = 'kept',
 }: QueryResultTableProps) {
   const [page, setPage] = useState(0);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -155,7 +181,11 @@ export function QueryResultTable({
         <TableHeader>
           <TableRow>
             {columns.map((attr) => (
-              <TableHead key={attr.name} aria-sort={sortLabel(attr.name)} className="align-bottom">
+              <TableHead
+                key={attr.name}
+                aria-sort={sortLabel(attr.name)}
+                className={`align-bottom ${columnEmphasisClass(attr.name, emphasizedColumns)}`}
+              >
                 <button
                   type="button"
                   onClick={() => toggleSort(attr.name)}
@@ -188,10 +218,21 @@ export function QueryResultTable({
                   ))}
                 </TableRow>
               ))
-            : pageRows.map((row, rIdx) => (
-                <TableRow key={`${pageStart + rIdx}`}>
+            : pageRows.map((row, rIdx) => {
+                const globalIndex = pageStart + rIdx;
+                const rowClass = rowEmphasisClass(
+                  globalIndex,
+                  emphasizedRowIndices,
+                  emphasizedRowVariant
+                );
+                return (
+                <TableRow key={`${pageStart + rIdx}`} className={rowClass}>
                   {columns.map((attr) => (
-                    <TableCell key={attr.name} mono={false}>
+                    <TableCell
+                      key={attr.name}
+                      mono={false}
+                      className={columnEmphasisClass(attr.name, emphasizedColumns)}
+                    >
                       <SandboxValueCell
                         value={row[attr.name] ?? null}
                         type={attributeType(attr.type)}
@@ -199,7 +240,8 @@ export function QueryResultTable({
                     </TableCell>
                   ))}
                 </TableRow>
-              ))}
+              );
+              })}
         </TableBody>
       </Table>
 

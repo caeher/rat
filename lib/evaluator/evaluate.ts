@@ -43,6 +43,7 @@ import {
   padNullTuple,
 } from './predicate';
 import { EvaluationRuntimeError } from './runtimeError';
+import { appendTraceStep } from './trace';
 
 export { markCancelled, createEvaluationContext };
 
@@ -174,19 +175,31 @@ function evaluateNode(
     }
   }
 
+  const tuplesBeforeDeduplication = result.tuples.length;
   result = finalizeRelation(result, ctx, node.id, node.range, isRoot);
 
-  steps.push({
-    stepIndex: steps.length,
-    nodeId: node.id,
-    operator: node.type,
-    operatorSymbol: node.type,
-    description: `${node.type} → ${result.tuples.length} tuple(s)`,
-    inputSchemas: [],
-    outputRelation: result,
-    tuplesBeforeDeduplication: undefined,
-    executionTimeMs: Date.now() - started,
-  });
+  if (ctx.captureTrace) {
+    const pending = ctx.pendingTrace;
+    const pendingCapture = pending
+      ? {
+          ...pending,
+          tuplesBeforeDeduplication:
+            tuplesBeforeDeduplication !== result.tuples.length
+              ? tuplesBeforeDeduplication
+              : pending.tuplesBeforeDeduplication,
+        }
+      : undefined;
+    appendTraceStep(
+      steps,
+      node,
+      pending?.inputs ?? [],
+      result,
+      ctx.tracePreviewRows,
+      started,
+      pendingCapture
+    );
+    ctx.pendingTrace = undefined;
+  }
 
   return result;
 }
@@ -204,10 +217,12 @@ function evaluateRelation(
       { code: 'E_RUNTIME_ERROR', nodeId: node.id, range: node.range }
     );
   }
-  return {
+  const data = {
     schema: structuredClone(base.schema),
     tuples: base.tuples.map((t) => ({ ...t })),
   };
+  ctx.pendingTrace = { inputs: [] };
+  return data;
 }
 
 function evaluateSelection(
@@ -227,13 +242,29 @@ function evaluateSelection(
   }
 
   const kept: Tuple[] = [];
-  for (const tuple of child.tuples) {
+  const droppedInputRowIndices: number[] = [];
+  for (let i = 0; i < child.tuples.length; i++) {
+    const tuple = child.tuples[i];
     recordRowOperations(ctx, 1, node.id, node.range, 'selection');
-    const truth = evaluatePredicate(node.predicate as import('@/lib/engine/types').PredicateNode, tuple, child.schema);
+    const truth = evaluatePredicate(
+      node.predicate as import('@/lib/engine/types').PredicateNode,
+      tuple,
+      child.schema
+    );
     if (truth === true) {
       kept.push({ ...tuple });
+    } else {
+      droppedInputRowIndices.push(i);
     }
   }
+
+  ctx.pendingTrace = {
+    inputs: [child],
+    highlights: {
+      droppedInputRowIndices,
+      outputRowIndices: kept.map((_, index) => index),
+    },
+  };
 
   return { schema, tuples: kept };
 }
@@ -265,6 +296,13 @@ function evaluateProjection(
     return out;
   });
 
+  ctx.pendingTrace = {
+    inputs: [child],
+    highlights: {
+      emphasizedColumns: schema.attributes.map((a) => a.name),
+    },
+  };
+
   return { schema, tuples: projected };
 }
 
@@ -287,6 +325,8 @@ function evaluateRenameRelation(
     }
     return out;
   });
+
+  ctx.pendingTrace = { inputs: [child] };
 
   return { schema, tuples };
 }
@@ -312,6 +352,13 @@ function evaluateRenameAttributes(
     }
     return out;
   });
+
+  ctx.pendingTrace = {
+    inputs: [child],
+    highlights: {
+      emphasizedColumns: Object.values(node.attributeMap),
+    },
+  };
 
   return { schema, tuples };
 }
@@ -341,6 +388,8 @@ function evaluateCartesian(
       );
     }
   }
+
+  ctx.pendingTrace = { inputs: [left, right] };
 
   return { schema, tuples };
 }
@@ -383,6 +432,13 @@ function evaluateNaturalJoin(
       }
     }
   }
+
+  ctx.pendingTrace = {
+    inputs: [left, right],
+    highlights: {
+      emphasizedColumns: schema.attributes.map((a) => a.name),
+    },
+  };
 
   return { schema, tuples };
 }
@@ -430,6 +486,11 @@ function evaluateThetaJoin(
       }
     }
   }
+
+  ctx.pendingTrace = {
+    inputs: [left, right],
+    highlights: { emphasizedColumns: schema.attributes.map((a) => a.name) },
+  };
 
   return { schema, tuples };
 }
@@ -532,6 +593,11 @@ function evaluateOuterJoin(
     }
   }
 
+  ctx.pendingTrace = {
+    inputs: [left, right],
+    highlights: { emphasizedColumns: schema.attributes.map((a) => a.name) },
+  };
+
   return { schema, tuples };
 }
 
@@ -572,6 +638,8 @@ function evaluateUnion(
     }
     tuples.push(mapped);
   }
+
+  ctx.pendingTrace = { inputs: [left, right] };
 
   return { schema: outSchema, tuples };
 }
@@ -617,6 +685,8 @@ function evaluateDifference(
     }
   }
 
+  ctx.pendingTrace = { inputs: [left, right] };
+
   return { schema: outSchema, tuples };
 }
 
@@ -661,6 +731,8 @@ function evaluateIntersection(
     }
   }
 
+  ctx.pendingTrace = { inputs: [left, right] };
+
   return { schema: outSchema, tuples };
 }
 
@@ -688,10 +760,15 @@ function evaluateDivision(
 
   if (divisor.tuples.length === 0) {
     const projected = projectToSchema(dividend, quotientSchema);
+    ctx.pendingTrace = {
+      inputs: [dividend, divisor],
+      explanationDetail: 'Empty divisor: division returns π_quotient(dividend).',
+    };
     return { schema: quotientSchema, tuples: projected };
   }
 
   if (dividend.tuples.length === 0) {
+    ctx.pendingTrace = { inputs: [dividend, divisor] };
     return { schema: quotientSchema, tuples: [] };
   }
 
@@ -727,6 +804,8 @@ function evaluateDivision(
       result.push(candidate);
     }
   }
+
+  ctx.pendingTrace = { inputs: [dividend, divisor] };
 
   return { schema: quotientSchema, tuples: result };
 }
@@ -769,7 +848,7 @@ export function evaluateRaAst(input: EvaluateInput): QueryExecutionResult {
       ast: input.ast,
       schema: relation.schema,
       relation,
-      steps,
+      steps: ctx.captureTrace ? steps : undefined,
       diagnostics: [],
       executionTimeMs: Date.now() - started,
     };
@@ -779,7 +858,9 @@ export function evaluateRaAst(input: EvaluateInput): QueryExecutionResult {
         version: CONTRACT_VERSION,
         success: false,
         rootNodeId: input.ast.id,
+        nodeId: err.nodeId,
         ast: input.ast,
+        steps: ctx.captureTrace && steps.length > 0 ? steps : undefined,
         diagnostics: [runtimeDiagnostic(err)],
         error: err.message,
         executionTimeMs: Date.now() - started,
@@ -791,6 +872,7 @@ export function evaluateRaAst(input: EvaluateInput): QueryExecutionResult {
       success: false,
       rootNodeId: input.ast.id,
       ast: input.ast,
+      steps: ctx.captureTrace && steps.length > 0 ? steps : undefined,
       diagnostics: [
         {
           code: 'E_RUNTIME_ERROR',

@@ -1,6 +1,7 @@
 import type { EvaluationOptions, SourceRange } from '@/lib/engine/types';
 import { EVALUATION_LIMITS } from './limits';
 import { EvaluationAbortedError, EvaluationRuntimeError } from './runtimeError';
+import type { PendingTraceCapture } from './trace';
 
 export interface ResolvedLimits {
   maxOutputRows: number;
@@ -15,6 +16,9 @@ export interface EvaluationContextState {
   startedAt: number;
   cancelled: boolean;
   nullEqualityInSetOps: boolean;
+  captureTrace: boolean;
+  tracePreviewRows: number;
+  pendingTrace?: PendingTraceCapture;
 }
 
 export function createEvaluationContext(
@@ -37,6 +41,9 @@ export function createEvaluationContext(
     startedAt: Date.now(),
     cancelled: false,
     nullEqualityInSetOps: options?.nullEqualityInSetOps ?? true,
+    captureTrace: options?.captureTrace ?? false,
+    tracePreviewRows:
+      options?.maxTracePreviewRows ?? EVALUATION_LIMITS.maxTracePreviewRows,
   };
 }
 

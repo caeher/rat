@@ -422,20 +422,49 @@ export type RelationalNode = ASTNode & {
 // 6. Evaluation Steps & Query Execution Contracts
 // ---------------------------------------------------------------------------
 
+export interface EvaluationStepHighlights {
+  /** Row indices emphasized in the step output preview table */
+  outputRowIndices?: number[];
+  /** Column names emphasized (projection, rename, join widening) */
+  emphasizedColumns?: string[];
+  /** Input row indices dropped by this step (e.g. selection filter) */
+  droppedInputRowIndices?: number[];
+}
+
+export interface EvaluationStepInputSummary {
+  schema: RelationSchema;
+  tupleCount: number;
+  previewTuples: Tuple[];
+  previewLimited?: boolean;
+}
+
 export interface EvaluationStep {
   stepIndex: number;
   nodeId: string;
+  range: SourceRange;
   operator: ASTNodeType;
   operatorSymbol: string;
   description: string;
+  /** Short teaching explanation for this operator application */
+  explanation: string;
   inputSchemas: RelationSchema[];
+  inputSummaries?: EvaluationStepInputSummary[];
+  outputSchema: RelationSchema;
+  outputTupleCount: number;
   outputRelation: RelationData;
+  /** True when outputRelation.tuples is truncated for UI retention limits */
+  outputPreviewLimited?: boolean;
   tuplesBeforeDeduplication?: number;
   executionTimeMs: number;
+  highlights?: EvaluationStepHighlights;
 }
 
 export interface EvaluationOptions {
   strictTypeChecking?: boolean;
+  /** Record postorder evaluation steps for step-by-step teaching UI. */
+  captureTrace?: boolean;
+  /** Max rows stored per relation inside each trace step preview. */
+  maxTracePreviewRows?: number;
   /** Maximum distinct output tuples (never returned partially when exceeded). */
   maxOutputRows?: number;
   /** Maximum tuples materialized in a single intermediate operator result. */
