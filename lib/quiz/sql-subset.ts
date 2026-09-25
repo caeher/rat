@@ -78,7 +78,7 @@ export function validateLearnerSql(raw: string): SqlSubsetValidation {
     };
   }
 
-  if (!/^SELECT\b/i.test(normalized)) {
+  if (!/^SELECT\b/i.test(normalized) && !/^\(\s*SELECT\b/i.test(normalized)) {
     return {
       ok: false,
       reason: 'not_select',
