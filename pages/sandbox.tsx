@@ -60,7 +60,14 @@ import {
 } from '@/components/ui/AlertDialog';
 import { ClientOnly } from '@/components/common/ClientOnly';
 import { SchemaDesigner } from '@/components/sandbox/SchemaDesigner';
-import { useSandboxState } from '@/lib/sandbox';
+import { usePersistedSandbox } from '@/lib/persistence/usePersistedSandbox';
+import {
+  appendQueryHistory,
+  buildHistoryEntry,
+} from '@/lib/persistence/client';
+import { StorageNoticeBanner } from '@/components/workspace/StorageNoticeBanner';
+import { WorkspacePersistencePanel } from '@/components/workspace/WorkspacePersistencePanel';
+import { useWorkspace } from '@/lib/persistence/WorkspaceProvider';
 import { useRaEvaluator } from '@/lib/evaluator/useRaEvaluator';
 import { useSqlExecutor } from '@/lib/sql/runtime/useSqlExecutor';
 import { compareAlgebraAndSql } from '@/lib/sql/runtime/compare';
@@ -92,14 +99,71 @@ const DEFAULT_EXPRESSION = 'π name, dept_name ( Employees ⋈ Departments )';
 
 export default function SandboxPage() {
   const router = useRouter();
-  const { state, dispatch, snapshot, relationNames, attributeNames, activeSchemaSet, dataVersion } =
-    useSandboxState();
+  const {
+    storageNotice,
+    clearStorageNotice,
+    remoteNotice,
+    dismissRemoteNotice,
+    applyRemoteWorkspace,
+    isDirty: isWorkspaceDirty,
+  } = useWorkspace();
+
+  const {
+    state,
+    dispatch,
+    snapshot,
+    relationNames,
+    attributeNames,
+    activeSchemaSet,
+    dataVersion,
+    workspaceStatus,
+    initialExpression,
+    persistCurrent,
+  } = usePersistedSandbox();
 
   const [expression, setExpression] = useState(DEFAULT_EXPRESSION);
+  const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [pendingExample, setPendingExample] = useState<ReferenceExecutableExample | null>(null);
   const [pendingExerciseId, setPendingExerciseId] = useState<string | null>(null);
   const appliedExampleQueryRef = useRef<string | null>(null);
   const appliedExerciseQueryRef = useRef<string | null>(null);
+  const skipNextPersistRef = useRef(false);
+
+  useEffect(() => {
+    if (workspaceStatus !== 'ready' || workspaceHydrated) return;
+    if (initialExpression) {
+      setExpression(initialExpression);
+    }
+    setWorkspaceHydrated(true);
+  }, [workspaceStatus, initialExpression, workspaceHydrated]);
+
+  useEffect(() => {
+    if (workspaceStatus !== 'ready' || !workspaceHydrated) return;
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false;
+      return;
+    }
+    persistCurrent(state, expression);
+  }, [state, expression, workspaceStatus, workspaceHydrated, persistCurrent]);
+
+  const handleApplyRemoteWorkspace = useCallback(async () => {
+    const doc = await applyRemoteWorkspace();
+    if (!doc) return;
+    skipNextPersistRef.current = true;
+    dispatch({ type: 'REPLACE_SANDBOX_STATE', state: doc.sandbox });
+    setExpression(doc.expression);
+    dismissRemoteNotice();
+  }, [applyRemoteWorkspace, dispatch, dismissRemoteNotice]);
+
+  const handleWorkspaceImported = useCallback(
+    (sandbox: import('@/lib/sandbox/types').SandboxState, nextExpression: string) => {
+      skipNextPersistRef.current = true;
+      dispatch({ type: 'REPLACE_SANDBOX_STATE', state: sandbox });
+      setExpression(nextExpression);
+      setExecutedSnapshot(null);
+    },
+    [dispatch]
+  );
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<RelationalAlgebraEditorHandle>(null);
@@ -393,6 +457,35 @@ export default function SandboxPage() {
       evaluationSteps: algebraOutcome.result.steps,
       failedStepNodeId: algebraOutcome.result.nodeId,
     });
+
+    if (activeSchemaSet) {
+      let status: import('@/lib/persistence/types').QueryRunStatus = 'success';
+      let message: string | undefined;
+      if (!algebraSuccess) {
+        status = 'algebra_error';
+        message = algebraError;
+      } else if (!translationReady) {
+        status = 'validation_error';
+        message = translationError;
+      } else if (!sqlOutcome.success) {
+        status = 'sql_mismatch';
+        message = sqlOutcome.message;
+      } else if (comparison && comparison.status === 'mismatch') {
+        status = 'sql_mismatch';
+        message = comparison.message;
+      }
+      void appendQueryHistory(
+        buildHistoryEntry({
+          expression,
+          schemaSet: activeSchemaSet,
+          dataVersion,
+          status,
+          rowCount: rows.length,
+          executionTimeMs: algebraOutcome.result.executionTimeMs,
+          message,
+        })
+      );
+    }
   }, [
     dataVersion,
     expression,
@@ -402,6 +495,7 @@ export default function SandboxPage() {
     runEvaluation,
     runSqlVerification,
     snapshot,
+    activeSchemaSet,
     validation.ast,
     validation.valid,
     wasmLocateUrl,
@@ -432,6 +526,15 @@ export default function SandboxPage() {
       description="Interactive browser sandbox for writing and executing Relational Algebra queries."
     >
       <div className="space-y-6">
+        <StorageNoticeBanner
+          storageNotice={storageNotice}
+          remoteNotice={remoteNotice}
+          isDirty={isWorkspaceDirty}
+          onDismissStorage={clearStorageNotice}
+          onDismissRemote={dismissRemoteNotice}
+          onApplyRemote={() => void handleApplyRemoteWorkspace()}
+        />
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--color-outline)]/60">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -459,6 +562,19 @@ export default function SandboxPage() {
               <RotateCcw className="w-3.5 h-3.5" />
               Reset query
             </Button>
+
+            <WorkspacePersistencePanel
+              expression={expression}
+              sandboxState={state}
+              activeSchemaSet={activeSchemaSet}
+              dispatch={dispatch}
+              onLoadExpression={(value) => {
+                setExpression(value);
+                setExecutedSnapshot(null);
+                editorRef.current?.focus();
+              }}
+              onWorkspaceImported={handleWorkspaceImported}
+            />
 
             <Dialog>
               <DialogTrigger asChild>

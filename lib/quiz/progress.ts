@@ -1,33 +1,10 @@
 import type { QuizDirection, QuizProgressRecord } from './types';
 import { QUIZ_RESULT_FORMAT_VERSION } from './types';
-
-const STORAGE_PREFIX = 'rat:quiz:';
-
-function storageKey(exerciseId: string, direction: QuizDirection): string {
-  return `${STORAGE_PREFIX}${QUIZ_RESULT_FORMAT_VERSION}:${exerciseId}:${direction}`;
-}
-
-function readRaw(exerciseId: string, direction: QuizDirection): QuizProgressRecord | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(storageKey(exerciseId, direction));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as QuizProgressRecord;
-    if (parsed.formatVersion !== QUIZ_RESULT_FORMAT_VERSION) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function writeRaw(record: QuizProgressRecord): void {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.setItem(storageKey(record.exerciseId, record.direction), JSON.stringify(record));
-  } catch {
-    // ignore quota / private mode
-  }
-}
+import {
+  hydrateQuizProgress,
+  persistQuizProgressRecord,
+  readCachedQuizProgress,
+} from '@/lib/persistence/client';
 
 export function defaultQuizProgress(
   exerciseId: string,
@@ -47,7 +24,14 @@ export function defaultQuizProgress(
 }
 
 export function readQuizProgress(exerciseId: string, direction: QuizDirection): QuizProgressRecord {
-  return readRaw(exerciseId, direction) ?? defaultQuizProgress(exerciseId, direction);
+  return readCachedQuizProgress(exerciseId, direction);
+}
+
+export async function ensureQuizProgressHydrated(
+  exerciseId: string,
+  direction: QuizDirection
+): Promise<QuizProgressRecord> {
+  return hydrateQuizProgress(exerciseId, direction);
 }
 
 export function recordQuizAttempt(
@@ -64,7 +48,7 @@ export function recordQuizAttempt(
     completedAt:
       status === 'correct' && !prev.solutionRevealed ? Date.now() : prev.completedAt,
   };
-  writeRaw(next);
+  void persistQuizProgressRecord(next);
   return next;
 }
 
@@ -78,7 +62,7 @@ export function revealQuizHint(
     ...prev,
     hintsRevealed: Math.min(maxHints, prev.hintsRevealed + 1),
   };
-  writeRaw(next);
+  void persistQuizProgressRecord(next);
   return next;
 }
 
@@ -88,7 +72,7 @@ export function revealQuizSolution(
 ): QuizProgressRecord {
   const prev = readQuizProgress(exerciseId, direction);
   const next = { ...prev, solutionRevealed: true };
-  writeRaw(next);
+  void persistQuizProgressRecord(next);
   return next;
 }
 
@@ -97,6 +81,6 @@ export function resetQuizProgress(
   direction: QuizDirection
 ): QuizProgressRecord {
   const next = defaultQuizProgress(exerciseId, direction);
-  writeRaw(next);
+  void persistQuizProgressRecord(next);
   return next;
 }

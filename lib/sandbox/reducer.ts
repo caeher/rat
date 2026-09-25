@@ -47,7 +47,9 @@ export type SandboxAction =
       relationName: string;
       attributes: SandboxRelation['attributes'];
       rows: Tuple[];
-    };
+    }
+  | { type: 'REPLACE_SANDBOX_STATE'; state: SandboxState }
+  | { type: 'RESTORE_SCHEMA_SET_SNAPSHOT'; schemaSet: SandboxSchemaSet };
 
 function bumpVersion(state: SandboxState): SandboxState {
   return { ...state, dataVersion: state.dataVersion + 1 };
@@ -405,6 +407,30 @@ export function sandboxReducer(state: SandboxState, action: SandboxAction): Sand
         schemaSets: state.schemaSets.map((s) =>
           s.id === action.schemaSetId ? { ...s, relations } : s
         ),
+      });
+    }
+
+    case 'REPLACE_SANDBOX_STATE':
+      return structuredClone(action.state);
+
+    case 'RESTORE_SCHEMA_SET_SNAPSHOT': {
+      const loaded = action.schemaSet;
+      const existing = state.schemaSets.find((s) => s.id === loaded.id);
+      if (existing) {
+        return bumpVersion({
+          ...state,
+          schemaSets: state.schemaSets.map((s) =>
+            s.id === loaded.id ? structuredClone(loaded) : s
+          ),
+          activeSchemaSetId: loaded.id,
+        });
+      }
+      if (state.schemaSets.length >= SANDBOX_LIMITS.maxSchemaSets) return state;
+      const copy = structuredClone(loaded);
+      return bumpVersion({
+        ...state,
+        schemaSets: [...state.schemaSets, copy],
+        activeSchemaSetId: copy.id,
       });
     }
 

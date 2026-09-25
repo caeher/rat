@@ -16,6 +16,7 @@ import {
   exerciseSandboxPath,
   markCompletedIndependently,
   markSolutionRevealed,
+  ensureExerciseSessionHydrated,
   readExerciseSession,
   revealNextHint,
   saveExerciseSession,
@@ -44,7 +45,7 @@ export function ExercisePracticePanel({ exercise }: ExercisePracticePanelProps) 
   );
 
   useEffect(() => {
-    setSession(readExerciseSession(exercise.id));
+    void ensureExerciseSessionHydrated(exercise.id).then(setSession);
   }, [exercise.id]);
 
   const hintsToShow = exercise.hints
