@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Tag } from '@/components/ui/Tag';
 import { QueryResultPanel } from '@/components/sandbox/QueryResultPanel';
-import { EvaluationTracePanel } from '@/components/sandbox/EvaluationTracePanel';
+import { EvaluationStepsWorkspace } from '@/components/sandbox/EvaluationStepsWorkspace';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
   DropdownMenu,
@@ -47,7 +47,13 @@ import { compareAlgebraAndSql } from '@/lib/sql/runtime/compare';
 import { transpileRaAst } from '@/lib/sql';
 import type { DualPathComparison, SqlExecutionOutcome } from '@/lib/sql/runtime';
 import { resolveAssetPath } from '@/lib/paths';
-import type { Diagnostic, EvaluationStep, RelationSchema, TupleValue } from '@/lib/engine/types';
+import type {
+  Diagnostic,
+  EvaluationStep,
+  RelationSchema,
+  SourceRange,
+  TupleValue,
+} from '@/lib/engine/types';
 import {
   Play,
   RotateCcw,
@@ -74,6 +80,8 @@ export default function SandboxPage() {
   const editorRef = useRef<RelationalAlgebraEditorHandle>(null);
   const paletteRef = useRef<OperatorPaletteHandle>(null);
   const { open: shortcutsOpen, setOpen: setShortcutsOpen, openShortcuts } = useEditorShortcutsDialog();
+  const [activeSubexpressionRange, setActiveSubexpressionRange] = useState<SourceRange | null>(null);
+
   const [executedSnapshot, setExecutedSnapshot] = useState<{
     expression: string;
     dataVersion: number;
@@ -436,6 +444,9 @@ export default function SandboxPage() {
                   schemas={engineSchemas}
                   onFocusOperatorPalette={handleFocusPalette}
                   onOpenShortcutsHelp={openShortcuts}
+                  activeSubexpressionRange={
+                    validation.valid && !validation.isValidating ? activeSubexpressionRange : null
+                  }
                   id="sandbox-expression-editor"
                   aria-label="Relational algebra expression editor"
                   aria-describedby="sandbox-diagnostics sandbox-attribute-hints sandbox-shortcuts-summary"
@@ -585,8 +596,10 @@ export default function SandboxPage() {
                 </TabsContent>
 
                 <TabsContent value="steps" className="space-y-3">
-                  <EvaluationTracePanel
-                    expression={executedSnapshot?.expression ?? expression}
+                  <EvaluationStepsWorkspace
+                    expression={expression}
+                    ast={validation.ast}
+                    expressionValid={validation.valid && !validation.isValidating}
                     steps={executedSnapshot?.evaluationSteps}
                     failedNodeId={executedSnapshot?.failedStepNodeId}
                     errorDiagnostic={executedSnapshot?.runtimeDiagnostics.find(
@@ -595,6 +608,7 @@ export default function SandboxPage() {
                     isStale={resultsStale}
                     staleReason={staleReason}
                     hasRunSnapshot={executedSnapshot !== null}
+                    onActiveRangeChange={setActiveSubexpressionRange}
                   />
                 </TabsContent>
 

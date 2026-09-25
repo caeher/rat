@@ -30,6 +30,9 @@ export interface EvaluationTracePanelProps {
   isStale: boolean;
   staleReason?: string;
   hasRunSnapshot: boolean;
+  /** Controlled step index (kept in sync with operator-tree selection). */
+  stepIndex?: number;
+  onStepIndexChange?: (index: number) => void;
 }
 
 function inputRelationFromSummary(
@@ -52,17 +55,37 @@ export function EvaluationTracePanel({
   isStale,
   staleReason,
   hasRunSnapshot,
+  stepIndex: controlledStepIndex,
+  onStepIndexChange,
 }: EvaluationTracePanelProps) {
   const totalSteps = steps?.length ?? 0;
   const [nav, setNav] = useState<TraceNavigationState>(() => createTraceNavigation(totalSteps));
 
   useEffect(() => {
-    setNav(createTraceNavigation(totalSteps, totalSteps > 0 ? totalSteps - 1 : 0));
+    const initial = totalSteps > 0 ? totalSteps - 1 : 0;
+    setNav(createTraceNavigation(totalSteps, initial));
+    onStepIndexChange?.(initial);
   }, [steps, totalSteps]);
 
+  useEffect(() => {
+    if (controlledStepIndex === undefined) return;
+    setNav(createTraceNavigation(totalSteps, controlledStepIndex));
+  }, [controlledStepIndex, totalSteps]);
+
+  const effectiveIndex = controlledStepIndex ?? nav.stepIndex;
+
+  const setStepIndex = useCallback(
+    (nextIndex: number) => {
+      const clamped = createTraceNavigation(totalSteps, nextIndex);
+      setNav(clamped);
+      onStepIndexChange?.(clamped.stepIndex);
+    },
+    [onStepIndexChange, totalSteps]
+  );
+
   const step = useMemo(
-    () => activeTraceStep(steps, nav.stepIndex),
-    [steps, nav.stepIndex]
+    () => activeTraceStep(steps, effectiveIndex),
+    [steps, effectiveIndex]
   );
 
   const subexpression = step ? sliceExpressionAtRange(expression, step.range) : '';
@@ -74,19 +97,19 @@ export function EvaluationTracePanel({
       if (!steps?.length) return;
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        setNav((current) => traceGoPrevious(current));
+        setStepIndex(traceGoPrevious(nav).stepIndex);
       } else if (event.key === 'ArrowRight') {
         event.preventDefault();
-        setNav((current) => traceGoNext(current));
+        setStepIndex(traceGoNext(nav).stepIndex);
       } else if (event.key === 'Home') {
         event.preventDefault();
-        setNav(traceGoStart(totalSteps));
+        setStepIndex(traceGoStart(totalSteps).stepIndex);
       } else if (event.key === 'End') {
         event.preventDefault();
-        setNav(traceGoFinish(totalSteps));
+        setStepIndex(traceGoFinish(totalSteps).stepIndex);
       }
     },
-    [steps, totalSteps]
+    [nav, setStepIndex, steps, totalSteps]
   );
 
   if (!hasRunSnapshot) {
@@ -105,7 +128,7 @@ export function EvaluationTracePanel({
     );
   }
 
-  const positionLabel = `Step ${nav.stepIndex + 1} of ${totalSteps}`;
+  const positionLabel = `Step ${effectiveIndex + 1} of ${totalSteps}`;
 
   return (
     <div
@@ -143,8 +166,8 @@ export function EvaluationTracePanel({
           variant="secondary"
           size="sm"
           aria-label="Go to first step"
-          disabled={nav.atStart}
-          onClick={() => setNav(traceGoStart(totalSteps))}
+          disabled={effectiveIndex === 0 || totalSteps === 0}
+          onClick={() => setStepIndex(traceGoStart(totalSteps).stepIndex)}
           className="gap-1"
         >
           <ChevronFirst className="w-3.5 h-3.5" />
@@ -155,8 +178,8 @@ export function EvaluationTracePanel({
           variant="secondary"
           size="sm"
           aria-label="Previous step"
-          disabled={!nav.canGoPrevious}
-          onClick={() => setNav((current) => traceGoPrevious(current))}
+          disabled={effectiveIndex === 0 || totalSteps === 0}
+          onClick={() => setStepIndex(traceGoPrevious(createTraceNavigation(totalSteps, effectiveIndex)).stepIndex)}
           className="gap-1"
         >
           <ChevronLeft className="w-3.5 h-3.5" />
@@ -167,8 +190,8 @@ export function EvaluationTracePanel({
           variant="secondary"
           size="sm"
           aria-label="Next step"
-          disabled={!nav.canGoNext}
-          onClick={() => setNav((current) => traceGoNext(current))}
+          disabled={effectiveIndex >= totalSteps - 1 || totalSteps === 0}
+          onClick={() => setStepIndex(traceGoNext(createTraceNavigation(totalSteps, effectiveIndex)).stepIndex)}
           className="gap-1"
         >
           Next
@@ -179,8 +202,8 @@ export function EvaluationTracePanel({
           variant="secondary"
           size="sm"
           aria-label="Go to final step"
-          disabled={nav.atFinish}
-          onClick={() => setNav(traceGoFinish(totalSteps))}
+          disabled={effectiveIndex >= totalSteps - 1 || totalSteps === 0}
+          onClick={() => setStepIndex(traceGoFinish(totalSteps).stepIndex)}
           className="gap-1"
         >
           Finish

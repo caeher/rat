@@ -17,7 +17,8 @@ import {
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { completionKeymap } from '@codemirror/autocomplete';
 import { lintGutter, forceLinting } from '@codemirror/lint';
-import type { RelationSchema, ValidationResult } from '@/lib/engine/types';
+import type { RelationSchema, SourceRange, ValidationResult } from '@/lib/engine/types';
+import { dispatchActiveRange, raActiveRangeHighlight } from '@/lib/editor/raActiveRange';
 import { raEditorTheme } from '@/lib/editor/raTheme';
 import { raSyntaxHighlight } from '@/lib/editor/raHighlight';
 import { createRaLinter } from '@/lib/editor/raLinter';
@@ -43,6 +44,8 @@ export interface RelationalAlgebraEditorProps {
   placeholder?: string;
   onFocusOperatorPalette?: () => void;
   onOpenShortcutsHelp?: () => boolean;
+  /** Highlights the source span of the active operator-tree / trace step. */
+  activeSubexpressionRange?: SourceRange | null;
 }
 
 export const RelationalAlgebraEditor = forwardRef<
@@ -60,6 +63,7 @@ export const RelationalAlgebraEditor = forwardRef<
     placeholder,
     onFocusOperatorPalette,
     onOpenShortcutsHelp,
+    activeSubexpressionRange = null,
   },
   ref
 ) {
@@ -102,6 +106,7 @@ export const RelationalAlgebraEditor = forwardRef<
       }),
       raEditorTheme,
       raSyntaxHighlight,
+      raActiveRangeHighlight,
       lintGutter(),
       createRaLinter({ getValidation: () => validationRef.current }),
       EditorView.lineWrapping,
@@ -201,6 +206,18 @@ export const RelationalAlgebraEditor = forwardRef<
     const view = viewRef.current;
     if (view) forceLinting(view);
   }, [validation]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    dispatchActiveRange(view, activeSubexpressionRange ?? null);
+    if (activeSubexpressionRange) {
+      const pos = activeSubexpressionRange.start.offset;
+      view.dispatch({
+        effects: EditorView.scrollIntoView(pos, { y: 'nearest' }),
+      });
+    }
+  }, [activeSubexpressionRange]);
 
   return (
     <div className="relative rounded-[4px] border border-[var(--color-outline)]/70 bg-[var(--color-card)] overflow-hidden">
