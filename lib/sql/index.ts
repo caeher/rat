@@ -4,6 +4,10 @@ export { transpileRaAst } from './transpile';
 export { toExecutableSql } from './executable';
 export { formatSql } from './format';
 export { formatIdentifier, escapeStringLiteral, formatLiteralValue } from './quote';
+export { translateSqlToAlgebra } from './sql-to-ra';
+export type { SqlToRaResult, SqlToRaMapping } from './sql-to-ra';
+export { parseSql } from './parse';
+export type { SqlToRaStep } from './reverse/compile';
 
 import { validateExpression } from '@/lib/engine/validator';
 import type { RelationSchema } from '@/lib/engine/types';

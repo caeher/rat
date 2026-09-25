@@ -27,6 +27,7 @@ import {
 } from '@/components/sandbox/EditorShortcutsDialog';
 import { ExpressionDiagnosticList } from '@/components/sandbox/ExpressionDiagnosticList';
 import { SqlTranslationPanel } from '@/components/sandbox/SqlTranslationPanel';
+import { SqlToAlgebraPanel } from '@/components/sandbox/SqlToAlgebraPanel';
 import { AlgebraSqlComparisonPanel } from '@/components/sandbox/AlgebraSqlComparisonPanel';
 import { useDebouncedValidation } from '@/lib/editor/useDebouncedValidation';
 import { STARTER_EXAMPLES } from '@/lib/reference/examples';
@@ -859,6 +860,20 @@ export default function SandboxPage() {
                     schemaLabel={activeSchemaSet?.name}
                     valid={validation.valid && !validation.isValidating}
                   />
+                  <div className="border-t border-[var(--color-outline)]/40 pt-4">
+                    <h3 className="text-[12px] font-medium text-[var(--color-text)] mb-2">
+                      SQL → Algebra (optional)
+                    </h3>
+                    <SqlToAlgebraPanel
+                      schemas={engineSchemas}
+                      schemaLabel={activeSchemaSet?.name}
+                      editorHasContent={expression.trim().length > 0}
+                      onApplyExpression={(next) => {
+                        setExpression(next);
+                        editorRef.current?.focus();
+                      }}
+                    />
+                  </div>
                 </TabsContent>
               </Tabs>
             </Card>

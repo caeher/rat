@@ -125,7 +125,10 @@ export type DiagnosticCode =
   | 'E_RUNTIME_ERROR'
   // SQL transpilation
   | 'E_SQL_TRANSPILATION'
-  | 'E_SQL_UNSUPPORTED';
+  | 'E_SQL_UNSUPPORTED'
+  | 'E_SQL_PARSE'
+  | 'E_SQL_SUBSET'
+  | 'E_SQL_BAG_SEMANTICS';
 
 export interface DiagnosticSuggestion {
   title: string;
