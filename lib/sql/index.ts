@@ -1,4 +1,5 @@
 export * from './types';
+export * from './runtime';
 export { transpileRaAst } from './transpile';
 export { toExecutableSql } from './executable';
 export { formatSql } from './format';
