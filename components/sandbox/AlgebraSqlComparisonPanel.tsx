@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tag } from '@/components/ui/Tag';
-import { DataTable } from '@/components/ui/Table';
-import type { RelationSchema, Tuple, TupleValue } from '@/lib/engine/types';
+import { QueryResultTable } from '@/components/sandbox/QueryResultTable';
+import type { RelationSchema, Tuple } from '@/lib/engine/types';
 import type { DualPathComparison, SqlExecutionOutcome } from '@/lib/sql/runtime';
 import { AlertTriangle, CheckCircle2, GitCompare, XCircle } from 'lucide-react';
 
@@ -14,21 +14,6 @@ export interface AlgebraSqlComparisonPanelProps {
   translationError?: string;
   comparison?: DualPathComparison;
   loading?: boolean;
-}
-
-function rowsToTableData(
-  schema: RelationSchema | undefined,
-  rows: Tuple[]
-): { columns: { key: string; header: string; type: 'string' | 'number' | 'boolean' | 'date' }[]; data: Record<string, TupleValue>[] } {
-  if (!schema) {
-    return { columns: [], data: [] };
-  }
-  const columns = schema.attributes.map((a) => ({
-    key: a.name,
-    header: a.name,
-    type: (a.type === 'null' ? 'string' : a.type) as 'string' | 'number' | 'boolean' | 'date',
-  }));
-  return { columns, data: rows };
 }
 
 function statusBanner(comparison: DualPathComparison | undefined, loading: boolean) {
@@ -109,11 +94,8 @@ export function AlgebraSqlComparisonPanel({
   comparison,
   loading,
 }: AlgebraSqlComparisonPanelProps) {
-  const algebraTable = rowsToTableData(algebraSchema, algebraRows);
-  const sqlTable = rowsToTableData(
-    sqlOutcome?.schema ?? algebraSchema,
-    sqlOutcome?.relation?.tuples ?? []
-  );
+  const sqlSchema = sqlOutcome?.schema ?? algebraSchema;
+  const sqlRows = sqlOutcome?.relation?.tuples ?? [];
 
   const sqlError =
     translationError ??
@@ -140,12 +122,12 @@ export function AlgebraSqlComparisonPanel({
           {algebraError ? (
             <p className="text-[12px] text-[var(--color-ember)] font-mono">{algebraError}</p>
           ) : algebraSchema ? (
-            <DataTable
-              columns={algebraTable.columns}
-              data={algebraTable.data}
+            <QueryResultTable
+              schema={algebraSchema}
+              rows={algebraRows}
               loading={loading}
-              emptyMessage="No tuples from algebra evaluation."
-              caption={`${algebraRows.length} tuple(s)`}
+              executionTimeMs={algebraTimeMs}
+              compact
             />
           ) : (
             <p className="text-[12px] text-[var(--color-driftwood)]">No algebra result yet.</p>
@@ -163,13 +145,13 @@ export function AlgebraSqlComparisonPanel({
           </div>
           {sqlError ? (
             <p className="text-[12px] text-[var(--color-ember)] font-mono">{sqlError}</p>
-          ) : sqlOutcome?.schema ? (
-            <DataTable
-              columns={sqlTable.columns}
-              data={sqlTable.data}
+          ) : sqlSchema ? (
+            <QueryResultTable
+              schema={sqlSchema}
+              rows={sqlRows}
               loading={loading}
-              emptyMessage="No tuples from SQL execution."
-              caption={`${sqlOutcome.rowCount ?? sqlTable.data.length} tuple(s)`}
+              executionTimeMs={sqlOutcome?.executionTimeMs}
+              compact
             />
           ) : (
             <p className="text-[12px] text-[var(--color-driftwood)]">No SQL result yet.</p>
