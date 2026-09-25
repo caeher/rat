@@ -112,7 +112,31 @@ The application is deployed as a zero-server static site using GitHub Actions.
 
 ## Architecture & Contribution
 
-Please review [ARCH.md](file:///c:/Users/echoe/Desktop/rat/ARCH.md) for architectural boundaries, state management strategies, and design token guidelines.
+- [ARCH.md](./ARCH.md) — client-only boundaries, directory layout, base path strategy
+- [docs/LANGUAGE_SPEC.md](./docs/LANGUAGE_SPEC.md) — RA grammar and semantics
+- [docs/SQL_DIALECT.md](./docs/SQL_DIALECT.md) — SQLite transpiler and quiz SQL subset
+- [docs/BROWSERS.md](./docs/BROWSERS.md) — supported browsers
+- [docs/PRIVACY.md](./docs/PRIVACY.md) — local data and share links
+- [docs/LIMITATIONS.md](./docs/LIMITATIONS.md) — known product limits
+- [docs/RELEASE_VALIDATION.md](./docs/RELEASE_VALIDATION.md) — integrated release checklist (issue #22)
+- [docs/SANDBOX_LIMITS.md](./docs/SANDBOX_LIMITS.md) / [docs/EVALUATION_LIMITS.md](./docs/EVALUATION_LIMITS.md) — capacity caps
+
+### Local development
+
+```bash
+pnpm install
+pnpm dev          # http://localhost:3000 (root base path)
+pnpm type-check
+pnpm lint
+pnpm test
+NEXT_PUBLIC_BASE_PATH=/rat pnpm build && pnpm test:smoke
+```
+
+### Deployment
+
+Production Pages builds use `NEXT_PUBLIC_BASE_PATH=/rat` (see `.github/workflows/deploy.yml`). Forks can deploy to root by omitting the variable; run `pnpm build` and `SMOKE_EXPECT_ROOT=1 pnpm test:smoke` to verify asset paths.
+
+---
 
 ---
 
