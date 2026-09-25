@@ -39,16 +39,6 @@ import {
 import { applyExerciseToSandbox, getExercise } from '@/lib/exercises';
 import type { ReferenceExecutableExample } from '@/lib/reference/types';
 import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from '@/components/ui/Dialog';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -60,6 +50,7 @@ import {
 } from '@/components/ui/AlertDialog';
 import { ClientOnly } from '@/components/common/ClientOnly';
 import { SchemaDesigner } from '@/components/sandbox/SchemaDesigner';
+import { SandboxShareDialog } from '@/components/sandbox/SandboxShareDialog';
 import { usePersistedSandbox } from '@/lib/persistence/usePersistedSandbox';
 import {
   appendQueryHistory,
@@ -89,7 +80,6 @@ import {
   Table as TableIcon,
   Code,
   Sparkles,
-  Share2,
   Eraser,
   BookOpen,
   Footprints,
@@ -576,35 +566,17 @@ export default function SandboxPage() {
               onWorkspaceImported={handleWorkspaceImported}
             />
 
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="secondary" size="sm" className="gap-1.5">
-                  <Share2 className="w-3.5 h-3.5" />
-                  Share
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Share Relational Algebra Expression</DialogTitle>
-                  <DialogDescription>
-                    Copy a deterministic URL link containing your expression state to share with peers or students.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-3 py-2">
-                  <div className="p-3 bg-[var(--color-card)] border border-[var(--color-outline)]/70 rounded-[4px] font-mono text-[12px] text-[var(--color-text)] break-all select-all">
-                    https://caeher.github.io/rat/sandbox?q={encodeURIComponent(expression)}
-                  </div>
-                </div>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="secondary">Done</Button>
-                  </DialogClose>
-                  <Button variant="primary" onClick={handleCopy}>
-                    {copied ? 'Copied Link' : 'Copy Share URL'}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <SandboxShareDialog
+              expression={expression}
+              sandboxState={state}
+              dispatch={dispatch}
+              onExpressionChange={setExpression}
+              workspaceReady={workspaceStatus === 'ready' && workspaceHydrated}
+              onShareApplied={() => {
+                skipNextPersistRef.current = true;
+                setExecutedSnapshot(null);
+              }}
+            />
 
             <Button variant="amber" size="sm" onClick={handleCopy} className="gap-1.5">
               {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
