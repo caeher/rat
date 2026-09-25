@@ -39,6 +39,7 @@ import {
   evaluatePredicate,
   joinKeysMatch,
   mergeTupleSchemas,
+  mergeTupleForJoinPredicate,
   mergeTupleSchemasConcat,
   padNullTuple,
 } from './predicate';
@@ -460,7 +461,11 @@ function evaluateThetaJoin(
     attributes: [...left.schema.attributes, ...right.schema.attributes],
   };
 
-  if (!node.predicate || typeof node.predicate === 'string') {
+  if (
+    node.predicate === undefined ||
+    node.predicate === null ||
+    (typeof node.predicate === 'string' && node.predicate.length === 0)
+  ) {
     return evaluateCartesian(
       { ...node, type: 'cartesian_product', left: node.left, right: node.right },
       relations,
@@ -473,7 +478,7 @@ function evaluateThetaJoin(
   for (const lt of left.tuples) {
     for (const rt of right.tuples) {
       recordRowOperations(ctx, 1, node.id, node.range, 'theta join');
-      const merged = mergeTupleSchemasConcat(lt, rt, schema.attributes, left.schema, right.schema);
+      const merged = mergeTupleForJoinPredicate(lt, rt, left.schema, right.schema);
       const truth = evaluatePredicate(
         node.predicate as import('@/lib/engine/types').PredicateNode,
         merged,
@@ -482,7 +487,9 @@ function evaluateThetaJoin(
         right.schema
       );
       if (truth === true) {
-        tuples.push(merged);
+        tuples.push(
+          mergeTupleSchemasConcat(lt, rt, schema.attributes, left.schema, right.schema)
+        );
       }
     }
   }

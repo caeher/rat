@@ -304,7 +304,7 @@ export class Parser {
         const node: ThetaJoinNode = {
           id: this.nextId('theta_join'),
           type: 'theta_join',
-          predicate: predicate || '',
+          predicate: predicate ?? '',
           left,
           right,
           range: combinedRange,

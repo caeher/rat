@@ -1,5 +1,5 @@
 import { SANDBOX_LIMITS } from './constants';
-import { createEmptyRelation, createId } from './defaults';
+import { createEmptyRelation, createId, createSampleSchemaSet } from './defaults';
 import { findDuplicateNames, validateIdentifier } from './identifiers';
 import {
   applyAttributeTypeChange,
@@ -37,6 +37,7 @@ export type SandboxAction =
   | { type: 'UPDATE_ROW'; relationId: string; rowIndex: number; row: Tuple }
   | { type: 'DELETE_ROW'; relationId: string; rowIndex: number }
   | { type: 'LOAD_PRESET'; presetId: import('./presets/types').BundledPresetId }
+  | { type: 'LOAD_LESSON_SCHEMA' }
   | { type: 'RESET_PRESET'; schemaSetId: string }
   | {
       type: 'IMPORT_CSV';
@@ -354,6 +355,26 @@ export function sandboxReducer(state: SandboxState, action: SandboxAction): Sand
         ...state,
         schemaSets: [...state.schemaSets, loaded],
         activeSchemaSetId: loaded.id,
+      });
+    }
+
+    case 'LOAD_LESSON_SCHEMA': {
+      const existing = state.schemaSets.find(
+        (set) => set.name === 'Lesson Schema' && set.relations.some((r) => r.name === 'Employees')
+      );
+      if (existing) {
+        return bumpVersion({
+          ...state,
+          activeSchemaSetId: existing.id,
+        });
+      }
+      if (state.schemaSets.length >= SANDBOX_LIMITS.maxSchemaSets) return state;
+      const lesson = createSampleSchemaSet();
+      lesson.id = createId();
+      return bumpVersion({
+        ...state,
+        schemaSets: [...state.schemaSets, lesson],
+        activeSchemaSetId: lesson.id,
       });
     }
 

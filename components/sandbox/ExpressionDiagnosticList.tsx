@@ -1,7 +1,8 @@
 import React from 'react';
+import Link from 'next/link';
 import type { Diagnostic } from '@/lib/engine/types';
 import { formatDiagnosticPlain } from '@/lib/editor/positions';
-import { AlertCircle, Info } from 'lucide-react';
+import { AlertCircle, Info, ExternalLink } from 'lucide-react';
 
 export interface ExpressionDiagnosticListProps {
   diagnostics: Diagnostic[];
@@ -60,12 +61,22 @@ export function ExpressionDiagnosticList({
                   />
                 )}
                 <span
-                  className={`text-[12px] font-mono leading-snug ${
+                  className={`text-[12px] font-mono leading-snug flex-1 ${
                     isError ? 'text-[var(--color-crimson)]' : 'text-[var(--color-amber)]'
                   }`}
                 >
                   {formatDiagnosticPlain(d)}
                 </span>
+                {d.documentationUrl ? (
+                  <Link
+                    href={d.documentationUrl}
+                    onClick={(e) => e.stopPropagation()}
+                    className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-mono text-[var(--color-ember)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-ink)] rounded-[2px]"
+                  >
+                    Guide
+                    <ExternalLink className="w-3 h-3" aria-hidden />
+                  </Link>
+                ) : null}
               </button>
             </li>
           );

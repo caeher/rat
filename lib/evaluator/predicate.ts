@@ -34,9 +34,17 @@ function resolveAttributeValue(
       (a) => a.sourceRelation === qualifier
     );
     if (leftMatch && !rightMatch) {
+      const qualified = `${qualifier}.${attrName}`;
+      if (qualified in tuple) {
+        return tuple[qualified];
+      }
       return tuple[attrName] ?? findInSchema(tuple, leftSchema, attrName);
     }
     if (rightMatch && !leftMatch) {
+      const qualified = `${qualifier}.${attrName}`;
+      if (qualified in tuple) {
+        return tuple[qualified];
+      }
       return tuple[attrName] ?? findInSchema(tuple, rightSchema, attrName);
     }
   }
@@ -241,6 +249,29 @@ export function mergeTupleSchemas(
     out[attr.name] = findInSchema(right, rightSchema, attr.name) ?? null;
   }
   return out;
+}
+
+/** Cartesian / theta join row merge; adds relation-qualified keys for predicates. */
+export function mergeTupleForJoinPredicate(
+  left: Tuple,
+  right: Tuple,
+  leftSchema: RelationSchema,
+  rightSchema: RelationSchema
+): Tuple {
+  const merged = mergeTupleSchemasConcat(
+    left,
+    right,
+    [...leftSchema.attributes, ...rightSchema.attributes],
+    leftSchema,
+    rightSchema
+  );
+  for (const attr of leftSchema.attributes) {
+    merged[`${leftSchema.name}.${attr.name}`] = left[attr.name] ?? null;
+  }
+  for (const attr of rightSchema.attributes) {
+    merged[`${rightSchema.name}.${attr.name}`] = right[attr.name] ?? null;
+  }
+  return merged;
 }
 
 /** Cartesian / theta join: left attributes then right attributes in order. */
