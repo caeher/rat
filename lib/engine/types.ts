@@ -24,6 +24,69 @@ export interface SourceRange {
 }
 
 // ---------------------------------------------------------------------------
+// 1.1 Tokens and Lexical Types
+// ---------------------------------------------------------------------------
+
+export type TokenType =
+  // Special
+  | 'EOF'
+  // Literals & Identifiers
+  | 'IDENTIFIER'
+  | 'STRING_LITERAL'
+  | 'NUMBER_LITERAL'
+  | 'BOOLEAN_LITERAL'
+  | 'NULL_LITERAL'
+  // Punctuation & Delimiters
+  | 'LPAREN'      // (
+  | 'RPAREN'      // )
+  | 'LBRACKET'    // [
+  | 'RBRACKET'    // ]
+  | 'COMMA'       // ,
+  | 'DOT'         // .
+  | 'ARROW'       // -> | → | AS | as
+  // Predicate Operators
+  | 'EQ'          // = | ==
+  | 'NEQ'         // != | <>
+  | 'LT'          // <
+  | 'LTE'         // <=
+  | 'GT'          // >
+  | 'GTE'         // >=
+  | 'AND'         // AND | and | ∧ | &&
+  | 'OR'          // OR | or | ∨ | ||
+  | 'NOT'         // NOT | not | ¬ | !
+  | 'IS'          // IS | is
+  // Relational Algebra Unary Operators
+  | 'OP_SELECTION'   // σ | sigma | s | SELECT | \sigma
+  | 'OP_PROJECTION'  // π | pi | p | PROJECT | \pi
+  | 'OP_RENAME'      // ρ | rho | r | RENAME | \rho | rho_attr | rename_attr
+  // Relational Algebra Binary Operators
+  | 'OP_CARTESIAN'   // ⨯ | × | * | cross | x | CROSS | \times
+  | 'OP_NATURAL_JOIN'// ⋈ | join | natural_join | >< | |><| | \bowtie
+  | 'OP_THETA_JOIN'  // theta_join | join_on | JOIN
+  | 'OP_LEFT_JOIN'   // ⟕ | left_join | left_outer_join | |>< | \leftouterjoin | \loj
+  | 'OP_RIGHT_JOIN'  // ⟖ | right_join | right_outer_join | ><| | \rightouterjoin | \roj
+  | 'OP_FULL_JOIN'   // ⟗ | full_join | full_outer_join | |><|* | \fullouterjoin | \foj
+  | 'OP_DIVISION'    // ÷ | divide | div | / | \div
+  | 'OP_INTERSECT'   // ∩ | intersect | cap | ^ | INTERSECT | \cap
+  | 'OP_UNION'       // ∪ | union | cup | U | UNION | \cup
+  | 'OP_DIFFERENCE'; // − | - | minus | diff | difference | \ | EXCEPT | \minus | \setminus
+
+export interface Token {
+  type: TokenType;
+  value: string;
+  raw: string;
+  range: SourceRange;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  isIncomplete: boolean;
+  ast?: ASTNode;
+  schema?: RelationSchema;
+  diagnostics: Diagnostic[];
+}
+
+// ---------------------------------------------------------------------------
 // 2. Diagnostics & Error Codes
 // ---------------------------------------------------------------------------
 
