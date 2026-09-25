@@ -29,6 +29,7 @@ export {
 } from './search';
 export {
   readExerciseSession,
+  ensureExerciseSessionHydrated,
   saveExerciseSession,
   revealNextHint,
   markSolutionRevealed,

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -10,7 +10,7 @@ import { filterExercises, listExercises, type ExerciseFilters } from '@/lib/exer
 import {
   QUIZ_DIRECTIONS,
   quizDirectionLabel,
-  readQuizProgress,
+  ensureQuizProgressHydrated,
   type QuizDirection,
 } from '@/lib/quiz';
 
@@ -32,6 +32,19 @@ export default function QuizIndexPage() {
       directions.map((direction) => ({ exercise, direction }))
     );
   }, [exercises, directionFilter]);
+
+  const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    void Promise.all(
+      quizEntries.map(async ({ exercise, direction }) => {
+        const progress = await ensureQuizProgressHydrated(exercise.id, direction);
+        return [`${exercise.id}:${direction}`, Boolean(progress.completedAt)] as const;
+      })
+    ).then((rows) => {
+      setCompletedMap(Object.fromEntries(rows));
+    });
+  }, [quizEntries]);
 
   return (
     <Layout
@@ -90,7 +103,7 @@ export default function QuizIndexPage() {
                 <QuizCard
                   exercise={exercise}
                   direction={direction}
-                  completed={Boolean(readQuizProgress(exercise.id, direction).completedAt)}
+                  completed={Boolean(completedMap[`${exercise.id}:${direction}`])}
                 />
               </ClientOnly>
             ))}

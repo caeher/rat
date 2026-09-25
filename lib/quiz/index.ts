@@ -13,6 +13,7 @@ export { gradeAlgebraQuizAttempt } from './grade-algebra';
 export { gradeSqlQuizAttemptOnDatabase } from './grade-sql';
 export {
   readQuizProgress,
+  ensureQuizProgressHydrated,
   recordQuizAttempt,
   revealQuizHint,
   revealQuizSolution,

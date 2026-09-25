@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -8,7 +8,7 @@ import { Filter } from 'lucide-react';
 import {
   filterExercises,
   listExercises,
-  readExerciseSession,
+  ensureExerciseSessionHydrated,
   type ExerciseFilters,
 } from '@/lib/exercises';
 import { ClientOnly } from '@/components/common/ClientOnly';
@@ -23,6 +23,19 @@ export default function ExercisesPage() {
     () => filterExercises(allExercises, filters),
     [allExercises, filters]
   );
+
+  const [completedMap, setCompletedMap] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    void Promise.all(
+      allExercises.map(async (exercise) => {
+        const session = await ensureExerciseSessionHydrated(exercise.id);
+        return [exercise.id, session.completedIndependently] as const;
+      })
+    ).then((rows) => {
+      setCompletedMap(Object.fromEntries(rows));
+    });
+  }, [allExercises]);
 
   return (
     <Layout
@@ -68,9 +81,7 @@ export default function ExercisesPage() {
               >
                 <ExerciseCard
                   exercise={exercise}
-                  completedIndependently={
-                    readExerciseSession(exercise.id).completedIndependently
-                  }
+                  completedIndependently={Boolean(completedMap[exercise.id])}
                 />
               </ClientOnly>
             ))}

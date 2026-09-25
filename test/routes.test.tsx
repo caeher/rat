@@ -7,6 +7,7 @@ import ExercisesPage from '@/pages/exercises';
 import ReferencePage from '@/pages/reference';
 import NotFoundPage from '@/pages/404';
 import ComponentsShowcasePage from '@/pages/components';
+import { WorkspaceProvider } from '@/lib/persistence/WorkspaceProvider';
 
 // Mock next/router
 vi.mock('next/router', () => ({
@@ -36,7 +37,11 @@ describe('Static Route Component Rendering', () => {
   });
 
   it('renders SandboxPage with editor and toolbar', () => {
-    render(<SandboxPage />);
+    render(
+      <WorkspaceProvider>
+        <SandboxPage />
+      </WorkspaceProvider>
+    );
     expect(
       screen.getByRole('heading', {
         level: 1,

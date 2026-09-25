@@ -19,6 +19,7 @@ import {
   gradeAlgebraQuizAttempt,
   gradeSqlQuizAttemptOnDatabase,
   quizDirectionLabel,
+  ensureQuizProgressHydrated,
   readQuizProgress,
   recordQuizAttempt,
   resetQuizProgress,
@@ -56,7 +57,7 @@ export function QuizPracticePanel({ exercise, direction }: QuizPracticePanelProp
   );
 
   useEffect(() => {
-    setProgress(readQuizProgress(exercise.id, direction));
+    void ensureQuizProgressHydrated(exercise.id, direction).then(setProgress);
     setGrade(null);
     setAlgebraAnswer('');
     setSqlAnswer('');
