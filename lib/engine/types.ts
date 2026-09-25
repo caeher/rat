@@ -122,7 +122,10 @@ export type DiagnosticCode =
   // Runtime evaluation errors (browser evaluator)
   | 'E_RUNTIME_LIMIT'
   | 'E_RUNTIME_ABORTED'
-  | 'E_RUNTIME_ERROR';
+  | 'E_RUNTIME_ERROR'
+  // SQL transpilation
+  | 'E_SQL_TRANSPILATION'
+  | 'E_SQL_UNSUPPORTED';
 
 export interface DiagnosticSuggestion {
   title: string;

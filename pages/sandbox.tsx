@@ -23,6 +23,7 @@ import {
   useEditorShortcutsDialog,
 } from '@/components/sandbox/EditorShortcutsDialog';
 import { ExpressionDiagnosticList } from '@/components/sandbox/ExpressionDiagnosticList';
+import { SqlTranslationPanel } from '@/components/sandbox/SqlTranslationPanel';
 import { useDebouncedValidation } from '@/lib/editor/useDebouncedValidation';
 import { STARTER_EXAMPLES } from '@/lib/editor/examples';
 import {
@@ -513,14 +514,12 @@ export default function SandboxPage() {
                 </TabsContent>
 
                 <TabsContent value="sql" className="space-y-3">
-                  <div className="text-[12px] font-mono text-[var(--color-ash)]">
-                    SQL transpilation preview (static placeholder).
-                  </div>
-                  <pre className="p-3.5 bg-[var(--color-canvas)] border border-[var(--color-outline)]/60 rounded-[4px] font-mono text-[13px] text-[var(--color-text)] whitespace-pre-wrap leading-relaxed">
-                    {validation.valid
-                      ? `-- Valid against ${activeSchemaSet?.name}\n-- Relations: ${relationNames.join(', ')}`
-                      : '-- Fix expression errors to generate SQL.'}
-                  </pre>
+                  <SqlTranslationPanel
+                    expression={expression}
+                    schemas={engineSchemas}
+                    schemaLabel={activeSchemaSet?.name}
+                    valid={validation.valid && !validation.isValidating}
+                  />
                 </TabsContent>
               </Tabs>
             </Card>
