@@ -24,6 +24,7 @@ import {
 } from '@/components/sandbox/EditorShortcutsDialog';
 import { ExpressionDiagnosticList } from '@/components/sandbox/ExpressionDiagnosticList';
 import { SqlTranslationPanel } from '@/components/sandbox/SqlTranslationPanel';
+import { AlgebraSqlComparisonPanel } from '@/components/sandbox/AlgebraSqlComparisonPanel';
 import { useDebouncedValidation } from '@/lib/editor/useDebouncedValidation';
 import { STARTER_EXAMPLES } from '@/lib/editor/examples';
 import {
@@ -40,6 +41,11 @@ import { ClientOnly } from '@/components/common/ClientOnly';
 import { SchemaDesigner } from '@/components/sandbox/SchemaDesigner';
 import { useSandboxState } from '@/lib/sandbox';
 import { useRaEvaluator } from '@/lib/evaluator/useRaEvaluator';
+import { useSqlExecutor } from '@/lib/sql/runtime/useSqlExecutor';
+import { compareAlgebraAndSql } from '@/lib/sql/runtime/compare';
+import { transpileRaAst } from '@/lib/sql';
+import type { DualPathComparison, SqlExecutionOutcome } from '@/lib/sql/runtime';
+import { resolveAssetPath } from '@/lib/paths';
 import type { Diagnostic, RelationSchema, TupleValue } from '@/lib/engine/types';
 import {
   Play,
@@ -79,9 +85,23 @@ export default function SandboxPage() {
       executionTimeMs?: number;
     };
     runtimeDiagnostics: Diagnostic[];
+    sqlOutcome?: SqlExecutionOutcome;
+    translationError?: string;
+    comparison?: DualPathComparison;
+    algebraError?: string;
   } | null>(null);
 
   const { runEvaluation, cancel, latestRequestIdRef } = useRaEvaluator();
+  const {
+    runSqlVerification,
+    cancel: cancelSql,
+    latestRequestIdRef: latestSqlRequestIdRef,
+  } = useSqlExecutor();
+
+  const wasmLocateUrl = useMemo(
+    () => resolveAssetPath('/sql-wasm/sql-wasm.wasm'),
+    []
+  );
 
   const engineSchemas = useMemo(() => {
     if (!snapshot) return {};
@@ -143,70 +163,137 @@ export default function SandboxPage() {
     setIsEvaluating(true);
     setExecutedSnapshot(null);
 
-    const outcome = await runEvaluation({
+    const transpiled = transpileRaAst(validation.ast, snapshot.schemas);
+    const translationReady =
+      transpiled.success &&
+      Boolean(transpiled.sql) &&
+      !transpiled.diagnostics.some((d) => d.severity === 'error');
+    const translationError = translationReady
+      ? undefined
+      : transpiled.diagnostics.find((d) => d.severity === 'error')?.message ??
+        'SQL could not be generated for this expression.';
+
+    const algebraOutcome = await runEvaluation({
       ast: validation.ast,
       relations: snapshot.relations,
     });
 
-    if (outcome.requestId !== latestRequestIdRef.current) {
+    if (algebraOutcome.requestId !== latestRequestIdRef.current) {
       setIsEvaluating(false);
       return;
     }
 
-    setIsEvaluating(false);
+    const algebraSuccess = algebraOutcome.result.success && Boolean(algebraOutcome.result.schema);
+    const algebraSchema = algebraOutcome.result.schema;
+    const algebraRelation = algebraOutcome.result.relation;
+    const algebraError = algebraSuccess
+      ? undefined
+      : algebraOutcome.result.error ??
+        algebraOutcome.result.diagnostics.find((d) => d.severity === 'error')?.message ??
+        'Algebra evaluation failed.';
 
-    if (!outcome.result.success || !outcome.result.schema) {
-      setExecutedSnapshot({
-        expression,
-        dataVersion,
-        requestId: outcome.requestId,
-        result: {
-          columns: [],
-          rows: [],
-          schema: outcome.result.schema,
-        },
-        runtimeDiagnostics: outcome.result.diagnostics,
+    let sqlOutcome: SqlExecutionOutcome = {
+      success: false,
+      failureKind: 'execution',
+      message: translationError ?? 'SQL was not executed.',
+      diagnostics: transpiled.diagnostics,
+    };
+
+    if (translationReady && transpiled.sql) {
+      const normalizeSchema =
+        algebraSchema ??
+        ({
+          name: 'sql_result',
+          attributes: [],
+        } satisfies RelationSchema);
+
+      const sqlResult = await runSqlVerification({
+        snapshot,
+        sql: transpiled.sql,
+        parameters: transpiled.parameters,
+        expectedSchema: normalizeSchema,
+        wasmLocateUrl,
       });
-      return;
+
+      if (sqlResult.requestId !== latestSqlRequestIdRef.current) {
+        setIsEvaluating(false);
+        return;
+      }
+      sqlOutcome = sqlResult.outcome;
     }
 
-    const schema = outcome.result.schema;
-    const columns = schema.attributes.map((a) => ({
-      key: a.name,
-      header: a.name,
-      type: (a.type === 'null' ? 'string' : a.type) as 'string' | 'number' | 'boolean' | 'date',
-    }));
-    const rows = outcome.result.relation?.tuples ?? [];
+    setIsEvaluating(false);
+
+    const comparison = compareAlgebraAndSql(
+      algebraRelation,
+      sqlOutcome.relation,
+      {
+        algebraReady: algebraSuccess,
+        sqlReady: translationReady && sqlOutcome.success,
+        failureStage: !algebraSuccess
+          ? 'algebra'
+          : !translationReady
+            ? 'sql_translation'
+            : !sqlOutcome.success
+              ? 'sql_runtime'
+              : undefined,
+        message:
+          !translationReady
+            ? translationError
+            : !sqlOutcome.success
+              ? sqlOutcome.message
+              : !algebraSuccess
+                ? algebraError
+                : undefined,
+      }
+    );
+
+    const schema = algebraSchema;
+    const columns =
+      schema?.attributes.map((a) => ({
+        key: a.name,
+        header: a.name,
+        type: (a.type === 'null' ? 'string' : a.type) as 'string' | 'number' | 'boolean' | 'date',
+      })) ?? [];
+    const rows = algebraRelation?.tuples ?? [];
 
     setExecutedSnapshot({
       expression,
       dataVersion,
-      requestId: outcome.requestId,
+      requestId: algebraOutcome.requestId,
       result: {
         columns,
         rows,
         schema,
         rowCount: rows.length,
-        executionTimeMs: outcome.result.executionTimeMs,
+        executionTimeMs: algebraOutcome.result.executionTimeMs,
       },
-      runtimeDiagnostics: outcome.result.diagnostics,
+      runtimeDiagnostics: algebraOutcome.result.diagnostics,
+      sqlOutcome,
+      translationError: translationReady ? undefined : translationError,
+      comparison,
+      algebraError,
     });
   }, [
     dataVersion,
     expression,
     isEmptyExpression,
     latestRequestIdRef,
+    latestSqlRequestIdRef,
     runEvaluation,
+    runSqlVerification,
     snapshot,
     validation.ast,
     validation.valid,
+    wasmLocateUrl,
   ]);
 
   useEffect(() => {
     return () => {
       cancel();
+      cancelSql();
     };
-  }, [cancel]);
+  }, [cancel, cancelSql]);
 
   const resultColumns = displayedResult?.columns ?? [];
   const resultData = displayedResult?.rows ?? [];
@@ -475,29 +562,42 @@ export default function SandboxPage() {
                       onSelectDiagnostic={handleJumpToDiagnostic}
                     />
                   ) : null}
-                  {displayedResult?.schema && displayedResult.rows.length > 0 ? (
-                    <DataTable
-                      columns={resultColumns}
-                      data={resultData}
+                  {displayedResult && executedSnapshot?.comparison && (
+                    <AlgebraSqlComparisonPanel
+                      algebraSchema={displayedResult.schema}
+                      algebraRows={displayedResult.rows}
+                      algebraTimeMs={displayedResult.executionTimeMs}
+                      algebraError={executedSnapshot.algebraError}
+                      sqlOutcome={executedSnapshot.sqlOutcome}
+                      translationError={executedSnapshot.translationError}
+                      comparison={executedSnapshot.comparison}
                       loading={isEvaluating}
-                      emptyMessage="No tuples matched this expression."
-                      caption={`${displayedResult.rowCount ?? displayedResult.rows.length} tuple(s) · ${displayedResult.executionTimeMs ?? 0} ms`}
                     />
-                  ) : displayedResult?.schema ? (
-                    <DataTable
-                      columns={resultColumns}
-                      data={resultData}
-                      loading={isEvaluating}
-                      emptyMessage="Expression is valid but returned an empty relation."
-                      caption={`0 tuples · ${displayedResult.executionTimeMs ?? 0} ms`}
-                    />
-                  ) : (
-                    <div className="text-[13px] text-[var(--color-driftwood)] py-6 text-center">
-                      {isEmptyExpression
-                        ? 'Enter an expression, then run to evaluate against the snapshot.'
-                        : 'Run a valid expression to see results.'}
-                    </div>
                   )}
+                  {!executedSnapshot?.comparison &&
+                    (displayedResult?.schema && displayedResult.rows.length > 0 ? (
+                      <DataTable
+                        columns={resultColumns}
+                        data={resultData}
+                        loading={isEvaluating}
+                        emptyMessage="No tuples matched this expression."
+                        caption={`${displayedResult.rowCount ?? displayedResult.rows.length} tuple(s) · ${displayedResult.executionTimeMs ?? 0} ms`}
+                      />
+                    ) : displayedResult?.schema ? (
+                      <DataTable
+                        columns={resultColumns}
+                        data={resultData}
+                        loading={isEvaluating}
+                        emptyMessage="Expression is valid but returned an empty relation."
+                        caption={`0 tuples · ${displayedResult.executionTimeMs ?? 0} ms`}
+                      />
+                    ) : (
+                      <div className="text-[13px] text-[var(--color-driftwood)] py-6 text-center">
+                        {isEmptyExpression
+                          ? 'Enter an expression, then run to evaluate against the snapshot.'
+                          : 'Run a valid expression to see results.'}
+                      </div>
+                    ))}
                   {displayedResult?.schema && (
                     <div className="flex flex-wrap gap-2">
                       {displayedResult.schema.attributes.map((a) => (

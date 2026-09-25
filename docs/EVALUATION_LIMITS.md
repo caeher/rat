@@ -17,6 +17,6 @@ Each Run assigns a monotonic `requestId`. Starting a new run cancels the previou
 
 ## Independence from SQL
 
-Evaluation uses `lib/evaluator/` only. SQL transpilation and future SQLite WASM verification remain separate paths for apples-to-apples comparison later.
+Algebra evaluation uses `lib/evaluator/`. SQL verification uses `lib/sql/runtime/` (sql.js in a Web Worker) with the same immutable sandbox snapshot materialized into an in-memory SQLite database. Comparison normalizes types and compares unordered tuple sets in `lib/sql/runtime/compare.ts`.
 
 See also [SANDBOX_LIMITS.md](./SANDBOX_LIMITS.md) for dataset size caps in the schema designer.
