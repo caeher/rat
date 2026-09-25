@@ -44,6 +44,7 @@ describe('Static Route Component Rendering', () => {
       })
     ).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Operator palette/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Operator reference/i })).toBeInTheDocument();
   });
 
   it('renders ExercisesPage with problem catalogue', () => {
@@ -62,10 +63,11 @@ describe('Static Route Component Rendering', () => {
     expect(
       screen.getByRole('heading', {
         level: 1,
-        name: /Relational Algebra Operator Reference/i,
+        name: /Relational algebra reference/i,
       })
     ).toBeInTheDocument();
     expect(screen.getByText('Selection (Restrict)')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Conceptual guides/i })).toBeInTheDocument();
   });
 
   it('renders NotFoundPage with return links', () => {

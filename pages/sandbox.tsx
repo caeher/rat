@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -19,6 +20,7 @@ import {
   type RelationalAlgebraEditorHandle,
 } from '@/components/sandbox/RelationalAlgebraEditor';
 import { OperatorPalette, type OperatorPaletteHandle } from '@/components/sandbox/OperatorPalette';
+import { SandboxReferencePanel } from '@/components/sandbox/SandboxReferencePanel';
 import {
   EditorShortcutsDialog,
   useEditorShortcutsDialog,
@@ -27,7 +29,14 @@ import { ExpressionDiagnosticList } from '@/components/sandbox/ExpressionDiagnos
 import { SqlTranslationPanel } from '@/components/sandbox/SqlTranslationPanel';
 import { AlgebraSqlComparisonPanel } from '@/components/sandbox/AlgebraSqlComparisonPanel';
 import { useDebouncedValidation } from '@/lib/editor/useDebouncedValidation';
-import { STARTER_EXAMPLES } from '@/lib/editor/examples';
+import { STARTER_EXAMPLES } from '@/lib/reference/examples';
+import {
+  enrichDiagnosticsWithReference,
+  getExecutableExample,
+  applyReferenceExampleToSandbox,
+  sandboxNeedsExampleConfirm,
+} from '@/lib/reference';
+import type { ReferenceExecutableExample } from '@/lib/reference/types';
 import {
   Dialog,
   DialogTrigger,
@@ -38,6 +47,16 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/Dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/AlertDialog';
 import { ClientOnly } from '@/components/common/ClientOnly';
 import { SchemaDesigner } from '@/components/sandbox/SchemaDesigner';
 import { useSandboxState } from '@/lib/sandbox';
@@ -71,10 +90,13 @@ import {
 const DEFAULT_EXPRESSION = 'π name, dept_name ( Employees ⋈ Departments )';
 
 export default function SandboxPage() {
+  const router = useRouter();
   const { state, dispatch, snapshot, relationNames, attributeNames, activeSchemaSet, dataVersion } =
     useSandboxState();
 
   const [expression, setExpression] = useState(DEFAULT_EXPRESSION);
+  const [pendingExample, setPendingExample] = useState<ReferenceExecutableExample | null>(null);
+  const appliedExampleQueryRef = useRef<string | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<RelationalAlgebraEditorHandle>(null);
@@ -121,6 +143,11 @@ export default function SandboxPage() {
 
   const validation = useDebouncedValidation(expression, engineSchemas, dataVersion);
 
+  const validationDiagnostics = useMemo(
+    () => enrichDiagnosticsWithReference(validation.diagnostics),
+    [validation.diagnostics]
+  );
+
   const isEmptyExpression = expression.trim().length === 0;
 
   const editorDiffersFromExecuted =
@@ -151,7 +178,35 @@ export default function SandboxPage() {
     editorRef.current?.focus();
   };
 
-  const handleLoadExample = (exampleExpression: string) => {
+  const commitLoadExample = useCallback(
+    (example: ReferenceExecutableExample) => {
+      applyReferenceExampleToSandbox(dispatch, example);
+      setExpression(example.expression);
+      setExecutedSnapshot(null);
+      editorRef.current?.focus();
+    },
+    [dispatch]
+  );
+
+  const handleRequestLoadExample = useCallback(
+    (exampleId: string) => {
+      const example = getExecutableExample(exampleId);
+      if (!example) return;
+      if (sandboxNeedsExampleConfirm(expression, dataVersion)) {
+        setPendingExample(example);
+        return;
+      }
+      commitLoadExample(example);
+    },
+    [commitLoadExample, dataVersion, expression]
+  );
+
+  const handleLoadExampleExpression = (exampleExpression: string) => {
+    const match = STARTER_EXAMPLES.find((ex) => ex.expression === exampleExpression);
+    if (match) {
+      handleRequestLoadExample(match.id);
+      return;
+    }
     setExpression(exampleExpression);
     editorRef.current?.focus();
   };
@@ -162,6 +217,15 @@ export default function SandboxPage() {
     },
     []
   );
+
+  useEffect(() => {
+    const raw = router.query.example;
+    const exampleId = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
+    if (!exampleId || appliedExampleQueryRef.current === exampleId) return;
+    if (!getExecutableExample(exampleId)) return;
+    appliedExampleQueryRef.current = exampleId;
+    handleRequestLoadExample(exampleId);
+  }, [router.query.example, handleRequestLoadExample]);
 
   const handleCopy = async () => {
     try {
@@ -353,7 +417,7 @@ export default function SandboxPage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => handleLoadExample(DEFAULT_EXPRESSION)}
+              onClick={() => handleLoadExampleExpression(DEFAULT_EXPRESSION)}
               className="gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -398,6 +462,32 @@ export default function SandboxPage() {
         </div>
 
         <OperatorPalette ref={paletteRef} onInsertTemplate={handleInsertTemplate} />
+
+        <SandboxReferencePanel onLoadExample={handleRequestLoadExample} />
+
+        <AlertDialog open={pendingExample !== null} onOpenChange={(open) => !open && setPendingExample(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Replace sandbox content?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Loading “{pendingExample?.title}” will switch to the example dataset and replace your current
+                expression. Your schema sets remain in the sidebar history, but unsaved edits on the active set may
+                no longer match the example.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep current work</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (pendingExample) commitLoadExample(pendingExample);
+                  setPendingExample(null);
+                }}
+              >
+                Load example
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <SchemaDesigner
           state={state}
@@ -456,7 +546,7 @@ export default function SandboxPage() {
 
               <ExpressionDiagnosticList
                 id="sandbox-diagnostics"
-                diagnostics={validation.diagnostics}
+                diagnostics={validationDiagnostics}
                 onSelectDiagnostic={handleJumpToDiagnostic}
                 emptyMessage={
                   isEmptyExpression
@@ -513,7 +603,7 @@ export default function SandboxPage() {
                       {STARTER_EXAMPLES.map((ex) => (
                         <DropdownMenuItem
                           key={ex.id}
-                          onSelect={() => handleLoadExample(ex.expression)}
+                          onSelect={() => handleRequestLoadExample(ex.id)}
                           className="flex flex-col items-start gap-0.5 py-2"
                         >
                           <span className="font-medium text-[13px]">{ex.title}</span>

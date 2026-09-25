@@ -1,4 +1,5 @@
 import React, { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/Popover';
 import { Input } from '@/components/ui/Input';
@@ -6,6 +7,7 @@ import {
   OPERATOR_PALETTE_ITEMS,
   type OperatorPaletteItem,
 } from '@/lib/editor/operatorPalette';
+import { referenceHrefForOperatorType } from '@/lib/reference/diagnostics';
 
 export interface OperatorPaletteHandle {
   focus: () => void;
@@ -142,6 +144,12 @@ function OperatorPaletteCard({
             </code>
           </PopoverContent>
         </Popover>
+        <Link
+          href={referenceHrefForOperatorType(item.operatorType)}
+          className="shrink-0 text-[11px] font-mono text-[var(--color-ember)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-ink)] rounded-[2px]"
+        >
+          Guide
+        </Link>
       </div>
       <button
         type="button"
