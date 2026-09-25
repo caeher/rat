@@ -27,6 +27,18 @@ export function buildSchemaSetFromDataset(
   };
 }
 
+export function buildSnapshotForDataset(dataset: ExerciseDataset, scopeId: string) {
+  const schemaSet = buildSchemaSetFromDataset(dataset, scopeId);
+  const state = {
+    schemaSets: [schemaSet],
+    activeSchemaSetId: schemaSet.id,
+    dataVersion: 1,
+  };
+  const snapshot = createSandboxSnapshot(state);
+  if (!snapshot) throw new Error(`snapshot missing for scope ${scopeId}`);
+  return snapshot;
+}
+
 export function buildSnapshotForExercise(exercise: Exercise) {
   const schemaSet = buildSchemaSetFromDataset(exercise.dataset, exercise.id);
   const state = {

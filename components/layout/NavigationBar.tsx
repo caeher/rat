@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { clsx } from 'clsx';
 import { Button } from '@/components/ui/Button';
-import { Terminal, BookOpen, Layers, Play, Component, Menu, X } from 'lucide-react';
+import { Terminal, BookOpen, Layers, Play, Component, Menu, X, Repeat } from 'lucide-react';
 
 export function NavigationBar() {
   const router = useRouter();
@@ -13,6 +13,7 @@ export function NavigationBar() {
     { href: '/', label: 'Overview' },
     { href: '/sandbox', label: 'Sandbox', icon: Terminal },
     { href: '/exercises', label: 'Exercises', icon: Layers },
+    { href: '/quiz', label: 'Quizzes', icon: Repeat },
     { href: '/reference', label: 'Reference', icon: BookOpen },
     { href: '/components', label: 'Components', icon: Component },
   ];
@@ -43,7 +44,8 @@ export function NavigationBar() {
         {/* Center: Desktop Nav links */}
         <nav className="hidden md:flex items-center gap-1 sm:gap-2">
           {navLinks.map((link) => {
-            const isActive = router.pathname === link.href;
+            const isActive =
+              router.pathname === link.href || router.pathname.startsWith(`${link.href}/`);
             return (
               <Link
                 key={link.href}
@@ -90,7 +92,8 @@ export function NavigationBar() {
           className="md:hidden py-3 border-t border-[var(--color-outline)]/40 space-y-1"
         >
           {navLinks.map((link) => {
-            const isActive = router.pathname === link.href;
+            const isActive =
+              router.pathname === link.href || router.pathname.startsWith(`${link.href}/`);
             return (
               <Link
                 key={link.href}

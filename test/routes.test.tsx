@@ -58,6 +58,17 @@ describe('Static Route Component Rendering', () => {
     expect(screen.getByText('High achievers')).toBeInTheDocument();
   });
 
+  it('renders QuizIndexPage with bidirectional catalogue', async () => {
+    const QuizIndexPage = (await import('@/pages/quiz/index')).default;
+    render(<QuizIndexPage />);
+    expect(
+      screen.getByRole('heading', {
+        level: 1,
+        name: /SQL ↔ Algebra Quizzes/i,
+      })
+    ).toBeInTheDocument();
+  });
+
   it('renders ReferencePage with operator definitions', () => {
     render(<ReferencePage />);
     expect(
