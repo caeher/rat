@@ -64,6 +64,11 @@ export const raEditorTheme = EditorView.theme(
     '.cm-ra-punctuation': {
       color: 'var(--color-ash)',
     },
+    '.cm-ra-active-subexpression': {
+      backgroundColor: 'color-mix(in srgb, var(--color-forest) 18%, var(--color-card))',
+      borderRadius: '2px',
+      outline: '1px solid color-mix(in srgb, var(--color-forest) 45%, transparent)',
+    },
     '.cm-ra-comment': {
       color: 'var(--color-mist)',
       fontStyle: 'italic',
