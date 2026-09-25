@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -18,16 +18,20 @@ import {
 } from '@/components/ui/Dialog';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/Popover';
 import { ClientOnly } from '@/components/common/ClientOnly';
+import { SchemaDesigner } from '@/components/sandbox/SchemaDesigner';
+import { useSandboxState } from '@/lib/sandbox';
+import { validateExpression } from '@/lib/engine/validator';
+import type { RelationSchema, TupleValue } from '@/lib/engine/types';
 import {
   Play,
   RotateCcw,
   Copy,
   Check,
   Table as TableIcon,
-  Database,
   Code,
   Sparkles,
   Share2,
+  AlertTriangle,
 } from 'lucide-react';
 
 const SAMPLE_OPERATORS = [
@@ -35,9 +39,6 @@ const SAMPLE_OPERATORS = [
   { symbol: 'π', name: 'Projection', example: 'π attr1, attr2 (R)', desc: 'Selects specified attributes' },
   { symbol: 'ρ', name: 'Rename', example: 'ρ NewName (R)', desc: 'Renames relation or attributes' },
   { symbol: '⋈', name: 'Natural Join', example: 'R ⋈ S', desc: 'Joins on common attribute names' },
-  { symbol: '⟕', name: 'Left Outer Join', example: 'R ⟕ S', desc: 'Preserves all left tuples' },
-  { symbol: '⟖', name: 'Right Outer Join', example: 'R ⟖ S', desc: 'Preserves all right tuples' },
-  { symbol: '⟗', name: 'Full Outer Join', example: 'R ⟗ S', desc: 'Preserves all left and right tuples' },
   { symbol: '⨯', name: 'Cartesian Product', example: 'R ⨯ S', desc: 'Combines all tuple pairs' },
   { symbol: '∪', name: 'Union', example: 'R ∪ S', desc: 'Tuples in R or S (set union)' },
   { symbol: '−', name: 'Difference', example: 'R − S', desc: 'Tuples in R not in S' },
@@ -45,43 +46,39 @@ const SAMPLE_OPERATORS = [
   { symbol: '÷', name: 'Division', example: 'R ÷ S', desc: 'Relational division' },
 ];
 
-const SAMPLE_RELATIONS = [
-  {
-    name: 'Employees',
-    attributes: [
-      { name: 'id', type: 'number' },
-      { name: 'name', type: 'string' },
-      { name: 'dept_id', type: 'number' },
-      { name: 'salary', type: 'number' },
-    ],
-    tuples: [
-      { id: 101, name: 'Alice Smith', dept_id: 1, salary: '$92,000' },
-      { id: 102, name: 'Bob Jones', dept_id: 2, salary: '$65,000' },
-      { id: 103, name: 'Carlos Ortiz', dept_id: 1, salary: '$84,000' },
-      { id: 104, name: 'Diana Prince', dept_id: 3, salary: '$98,500' },
-    ],
-  },
-  {
-    name: 'Departments',
-    attributes: [
-      { name: 'dept_id', type: 'number' },
-      { name: 'dept_name', type: 'string' },
-      { name: 'location', type: 'string' },
-    ],
-    tuples: [
-      { dept_id: 1, dept_name: 'Engineering', location: 'Building A' },
-      { dept_id: 2, dept_name: 'Marketing', location: 'Building B' },
-      { dept_id: 3, dept_name: 'Research', location: 'Building C' },
-    ],
-  },
-];
+const DEFAULT_EXPRESSION = 'π name, dept_name ( Employees ⋈ Departments )';
 
 export default function SandboxPage() {
-  const [expression, setExpression] = useState(
-    'π name, dept_name, salary ( σ salary > 70000 ( Employees ⋈ Departments ) )'
-  );
+  const { state, dispatch, snapshot, relationNames, attributeNames, activeSchemaSet, dataVersion } =
+    useSandboxState();
+
+  const [expression, setExpression] = useState(DEFAULT_EXPRESSION);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [evaluatedVersion, setEvaluatedVersion] = useState<number | null>(null);
+  const [lastValidResult, setLastValidResult] = useState<{
+    columns: { key: string; header: string; type: 'string' | 'number' | 'boolean' | 'date' }[];
+    rows: Record<string, TupleValue>[];
+    schema?: RelationSchema;
+  } | null>(null);
+
+  const engineSchemas = useMemo(() => {
+    if (!snapshot) return {};
+    return { ...snapshot.schemas };
+  }, [snapshot]);
+
+  const validation = useMemo(
+    () => validateExpression(expression, engineSchemas),
+    [expression, engineSchemas]
+  );
+
+  const resultsStale = evaluatedVersion !== null && evaluatedVersion !== dataVersion;
+
+  useEffect(() => {
+    if (resultsStale) {
+      setLastValidResult(null);
+    }
+  }, [resultsStale, dataVersion]);
 
   const handleInsertSymbol = (symbol: string) => {
     setExpression((prev) => `${prev} ${symbol} `);
@@ -93,28 +90,39 @@ export default function SandboxPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
+      // clipboard unavailable
     }
   };
 
-  const handleEvaluate = () => {
+  const handleEvaluate = useCallback(() => {
     setIsEvaluating(true);
-    setTimeout(() => {
+    const result = validateExpression(expression, engineSchemas);
+    window.setTimeout(() => {
       setIsEvaluating(false);
-    }, 400);
-  };
+      if (result.valid && result.schema) {
+        const columns = result.schema.attributes.map((a) => ({
+          key: a.name,
+          header: a.name,
+          type: a.type === 'null' ? 'string' : a.type,
+        }));
+        setLastValidResult({
+          columns,
+          rows: [],
+          schema: result.schema,
+        });
+        setEvaluatedVersion(dataVersion);
+      }
+    }, 200);
+  }, [dataVersion, engineSchemas, expression]);
 
-  const resultColumns = [
-    { key: 'name', header: 'name', mono: false },
-    { key: 'dept_name', header: 'dept_name', mono: false },
-    { key: 'salary', header: 'salary', mono: true },
-  ];
+  const resultColumns = lastValidResult?.columns ?? [];
+  const resultData = lastValidResult?.rows ?? [];
 
-  const resultData = [
-    { name: 'Alice Smith', dept_name: 'Engineering', salary: '$92,000' },
-    { name: 'Carlos Ortiz', dept_name: 'Engineering', salary: '$84,000' },
-    { name: 'Diana Prince', dept_name: 'Research', salary: '$98,500' },
-  ];
+  const syntaxLabel = validation.valid
+    ? 'Expression valid'
+    : validation.isIncomplete
+      ? 'Incomplete expression'
+      : 'Syntax / schema errors';
 
   return (
     <Layout
@@ -122,32 +130,32 @@ export default function SandboxPage() {
       description="Interactive browser sandbox for writing and executing Relational Algebra queries."
     >
       <div className="space-y-6">
-        {/* Top Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--color-outline)]/60">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-[26px] font-normal tracking-[-0.012em] text-[var(--color-text)]">
                 Relational Algebra Sandbox
               </h1>
-              <Tag variant="forest">Ready</Tag>
-              <Tag variant="default">Client-Side WASM/JS</Tag>
+              <Tag variant={validation.valid ? 'forest' : 'default'}>
+                {validation.valid ? 'Valid' : 'Check query'}
+              </Tag>
+              <Tag variant="default">Snapshot v{dataVersion}</Tag>
             </div>
             <p className="text-[14px] text-[var(--color-driftwood)] mt-1">
-              Construct queries using algebraic operators and evaluate them against in-memory relations.
+              Design schemas below, then evaluate expressions against the active snapshot (
+              {activeSchemaSet?.name ?? 'none'}).
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="secondary"
               size="sm"
-              onClick={() =>
-                setExpression('π name, salary ( σ salary > 80000 ( Employees ) )')
-              }
+              onClick={() => setExpression(DEFAULT_EXPRESSION)}
               className="gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Reset
+              Reset query
             </Button>
 
             <Dialog>
@@ -180,19 +188,13 @@ export default function SandboxPage() {
               </DialogContent>
             </Dialog>
 
-            <Button
-              variant="amber"
-              size="sm"
-              onClick={handleCopy}
-              className="gap-1.5"
-            >
+            <Button variant="amber" size="sm" onClick={handleCopy} className="gap-1.5">
               {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               {copied ? 'Copied' : 'Copy Query'}
             </Button>
           </div>
         </div>
 
-        {/* Operator Quick-Insert Toolbar */}
         <div className="p-3 bg-[var(--color-card)] border border-[var(--color-outline)]/60 rounded-[4px] flex flex-wrap items-center gap-1.5 sm:gap-2">
           <span className="text-[12px] font-mono text-[var(--color-ash)] mr-2 select-none w-full sm:w-auto mb-1 sm:mb-0">
             Insert Operator:
@@ -214,9 +216,7 @@ export default function SandboxPage() {
                     <span className="font-mono text-[14px] font-bold text-[var(--color-ember)]">
                       {op.symbol}
                     </span>
-                    <span className="font-medium text-[13px] text-[var(--color-text)]">
-                      {op.name}
-                    </span>
+                    <span className="font-medium text-[13px] text-[var(--color-text)]">{op.name}</span>
                   </div>
                   <p className="text-[12px] text-[var(--color-driftwood)]">{op.desc}</p>
                   <div className="font-mono text-[11px] bg-[var(--color-elevated)] px-1.5 py-0.5 rounded-[2px] text-[var(--color-ash)] mt-1 inline-block">
@@ -228,25 +228,30 @@ export default function SandboxPage() {
           ))}
         </div>
 
-        {/* Main Editor & Results Grid */}
+        <SchemaDesigner
+          state={state}
+          dispatch={dispatch}
+          activeSchemaSet={activeSchemaSet}
+          dataVersion={dataVersion}
+        />
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Query Editor & Schema Viewer */}
           <div className="lg:col-span-7 space-y-6">
             <Card className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <span className="text-[13px] font-medium text-[var(--color-text)] flex items-center gap-2">
                   <Code className="w-4 h-4 text-[var(--color-ash)]" />
                   Expression Editor
                 </span>
-                <span className="text-[11px] font-mono text-[var(--color-ash)]">
-                  AST Syntax Valid
+                <span
+                  className={`text-[11px] font-mono ${validation.valid ? 'text-[var(--color-forest)]' : 'text-[var(--color-ember)]'}`}
+                >
+                  {syntaxLabel}
                 </span>
               </div>
 
               <ClientOnly
-                fallback={
-                  <div className="h-32 bg-[var(--color-card)] animate-pulse rounded-[4px]" />
-                }
+                fallback={<div className="h-32 bg-[var(--color-card)] animate-pulse rounded-[4px]" />}
               >
                 <Textarea
                   value={expression}
@@ -254,13 +259,31 @@ export default function SandboxPage() {
                   rows={4}
                   mono
                   placeholder="Enter relational algebra expression, e.g. σ salary > 50000 ( Employees )"
+                  aria-describedby="sandbox-attribute-hints"
                 />
               </ClientOnly>
 
-              <div className="flex items-center justify-between pt-2">
+              {validation.diagnostics.length > 0 && (
+                <ul className="text-[12px] text-[var(--color-ember)] space-y-1 font-mono" role="alert">
+                  {validation.diagnostics
+                    .filter((d) => d.severity === 'error')
+                    .slice(0, 4)
+                    .map((d, i) => (
+                      <li key={i}>{d.message}</li>
+                    ))}
+                </ul>
+              )}
+
+              <p id="sandbox-attribute-hints" className="text-[11px] text-[var(--color-ash)] font-mono">
+                Relations: {relationNames.join(', ') || 'none'} · Attributes:{' '}
+                {attributeNames.slice(0, 12).join(', ')}
+                {attributeNames.length > 12 ? '…' : ''}
+              </p>
+
+              <div className="flex items-center justify-between pt-2 flex-wrap gap-2">
                 <div className="text-[12px] text-[var(--color-driftwood)] flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[var(--color-amber)]" />
-                  <span>Interactive syntax parser active</span>
+                  <span>Live validation against snapshot v{dataVersion}</span>
                 </div>
                 <Button
                   variant="primary"
@@ -269,91 +292,104 @@ export default function SandboxPage() {
                   loadingText="Evaluating..."
                   onClick={handleEvaluate}
                   className="gap-2"
+                  disabled={!validation.valid}
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   Evaluate Expression
                 </Button>
               </div>
             </Card>
-
-            {/* In-Memory Available Schemas */}
-            <Card className="space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-[var(--color-outline)]/50">
-                <span className="text-[13px] font-medium text-[var(--color-text)] flex items-center gap-2">
-                  <Database className="w-4 h-4 text-[var(--color-ash)]" />
-                  Active In-Memory Relations
-                </span>
-                <span className="text-[11px] font-mono text-[var(--color-ash)]">
-                  2 relations available
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {SAMPLE_RELATIONS.map((rel) => (
-                  <div
-                    key={rel.name}
-                    className="p-3 bg-[var(--color-canvas)] border border-[var(--color-outline)]/60 rounded-[4px]"
-                  >
-                    <div className="font-mono text-[13px] font-semibold text-[var(--color-text)] mb-1">
-                      {rel.name}
-                    </div>
-                    <div className="text-[11px] font-mono text-[var(--color-driftwood)] space-y-0.5">
-                      {rel.attributes.map((attr) => (
-                        <div key={attr.name} className="flex justify-between">
-                          <span>{attr.name}</span>
-                          <span className="text-[var(--color-ash)]">{attr.type}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
           </div>
 
-          {/* Results View Panel */}
           <div className="lg:col-span-5 space-y-6">
             <Card className="p-4 space-y-4">
+              {resultsStale && (
+                <div
+                  className="flex items-start gap-2 p-2 rounded-[4px] bg-[var(--color-elevated)]/80 text-[12px] text-[var(--color-driftwood)]"
+                  role="status"
+                >
+                  <AlertTriangle className="w-4 h-4 text-[var(--color-amber)] shrink-0 mt-0.5" />
+                  Schema or data changed — previous results were cleared. Re-evaluate to refresh.
+                </div>
+              )}
+
               <Tabs defaultValue="results">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
                   <TabsList>
                     <TabsTrigger value="results" className="gap-1.5">
                       <TableIcon className="w-3.5 h-3.5" />
-                      Relation (3)
+                      Inferred schema
                     </TabsTrigger>
                     <TabsTrigger value="sql" className="gap-1.5">
                       <Code className="w-3.5 h-3.5" />
-                      SQL Translation
+                      SQL (preview)
                     </TabsTrigger>
                   </TabsList>
-                  <Tag variant="forest">0.38 ms</Tag>
+                  {lastValidResult?.schema && (
+                    <Tag variant="forest">{lastValidResult.schema.attributes.length} attrs</Tag>
+                  )}
                 </div>
 
                 <TabsContent value="results" className="space-y-3">
-                  <DataTable
-                    columns={resultColumns}
-                    data={isEvaluating ? [] : resultData}
-                    loading={isEvaluating}
-                    caption="Query output relation with 3 tuples."
-                  />
+                  {lastValidResult?.schema ? (
+                    <DataTable
+                      columns={resultColumns}
+                      data={resultData}
+                      loading={isEvaluating}
+                      emptyMessage="Evaluation produced a schema; tuple execution ships in a later milestone."
+                      caption={`Output schema for: ${lastValidResult.schema.name}`}
+                    />
+                  ) : (
+                    <div className="text-[13px] text-[var(--color-driftwood)] py-6 text-center">
+                      Run a valid expression to see the inferred result schema.
+                    </div>
+                  )}
+                  {lastValidResult?.schema && (
+                    <div className="flex flex-wrap gap-2">
+                      {lastValidResult.schema.attributes.map((a) => (
+                        <span
+                          key={a.name}
+                          className="text-[11px] font-mono px-2 py-0.5 rounded-[3px] bg-[var(--color-canvas)] border border-[var(--color-outline)]/60"
+                        >
+                          {a.name}: {a.type}
+                          {a.nullable ? '?' : ''}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="sql" className="space-y-3">
                   <div className="text-[12px] font-mono text-[var(--color-ash)]">
-                    Equivalent ANSI SQL:
+                    SQL transpilation preview (static placeholder).
                   </div>
                   <pre className="p-3.5 bg-[var(--color-canvas)] border border-[var(--color-outline)]/60 rounded-[4px] font-mono text-[13px] text-[var(--color-text)] whitespace-pre-wrap leading-relaxed">
-{`SELECT 
-  Employees.name, 
-  Departments.dept_name, 
-  Employees.salary 
-FROM Employees 
-NATURAL JOIN Departments 
-WHERE Employees.salary > 70000;`}
+                    {validation.valid
+                      ? `-- Valid against ${activeSchemaSet?.name}\n-- Relations: ${relationNames.join(', ')}`
+                      : '-- Fix expression errors to generate SQL.'}
                   </pre>
                 </TabsContent>
               </Tabs>
             </Card>
+
+            {snapshot && (
+              <Card className="p-3 space-y-2">
+                <div className="text-[12px] font-medium text-[var(--color-text)]">Active snapshot</div>
+                <p className="text-[11px] text-[var(--color-driftwood)]">
+                  Immutable copy v{snapshot.version} · {Object.keys(snapshot.relations).length} relations
+                </p>
+                <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto">
+                  {Object.values(snapshot.relations).map((rel) => (
+                    <div
+                      key={rel.schema.name}
+                      className="text-[11px] font-mono text-[var(--color-driftwood)] border border-[var(--color-outline)]/40 rounded-[3px] px-2 py-1"
+                    >
+                      {rel.schema.name} ({rel.tuples.length} rows)
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
           </div>
         </div>
       </div>
