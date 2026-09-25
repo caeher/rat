@@ -21,6 +21,8 @@ export interface SandboxSchemaSet {
   relations: SandboxRelation[];
   /** When loaded from a bundled educational preset. */
   presetId?: BundledPresetId;
+  /** When loaded from a practice exercise dataset. */
+  exerciseId?: string;
 }
 
 export interface SandboxState {

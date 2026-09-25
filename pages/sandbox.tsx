@@ -36,6 +36,7 @@ import {
   applyReferenceExampleToSandbox,
   sandboxNeedsExampleConfirm,
 } from '@/lib/reference';
+import { applyExerciseToSandbox, getExercise } from '@/lib/exercises';
 import type { ReferenceExecutableExample } from '@/lib/reference/types';
 import {
   Dialog,
@@ -96,7 +97,9 @@ export default function SandboxPage() {
 
   const [expression, setExpression] = useState(DEFAULT_EXPRESSION);
   const [pendingExample, setPendingExample] = useState<ReferenceExecutableExample | null>(null);
+  const [pendingExerciseId, setPendingExerciseId] = useState<string | null>(null);
   const appliedExampleQueryRef = useRef<string | null>(null);
+  const appliedExerciseQueryRef = useRef<string | null>(null);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<RelationalAlgebraEditorHandle>(null);
@@ -188,6 +191,18 @@ export default function SandboxPage() {
     [dispatch]
   );
 
+  const commitLoadExercise = useCallback(
+    (exerciseId: string) => {
+      const exercise = getExercise(exerciseId);
+      if (!exercise) return;
+      applyExerciseToSandbox(dispatch, exercise);
+      setExpression('');
+      setExecutedSnapshot(null);
+      editorRef.current?.focus();
+    },
+    [dispatch]
+  );
+
   const handleRequestLoadExample = useCallback(
     (exampleId: string) => {
       const example = getExecutableExample(exampleId);
@@ -226,6 +241,27 @@ export default function SandboxPage() {
     appliedExampleQueryRef.current = exampleId;
     handleRequestLoadExample(exampleId);
   }, [router.query.example, handleRequestLoadExample]);
+
+  const handleRequestLoadExercise = useCallback(
+    (exerciseId: string) => {
+      if (!getExercise(exerciseId)) return;
+      if (sandboxNeedsExampleConfirm(expression, dataVersion)) {
+        setPendingExerciseId(exerciseId);
+        return;
+      }
+      commitLoadExercise(exerciseId);
+    },
+    [commitLoadExercise, dataVersion, expression]
+  );
+
+  useEffect(() => {
+    const raw = router.query.exercise;
+    const exerciseId = typeof raw === 'string' ? raw : Array.isArray(raw) ? raw[0] : undefined;
+    if (!exerciseId || appliedExerciseQueryRef.current === exerciseId) return;
+    if (!getExercise(exerciseId)) return;
+    appliedExerciseQueryRef.current = exerciseId;
+    handleRequestLoadExercise(exerciseId);
+  }, [router.query.exercise, handleRequestLoadExercise]);
 
   const handleCopy = async () => {
     try {
@@ -484,6 +520,32 @@ export default function SandboxPage() {
                 }}
               >
                 Load example
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog
+          open={pendingExerciseId !== null}
+          onOpenChange={(open) => !open && setPendingExerciseId(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Load exercise dataset?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Loading exercise “{pendingExerciseId ? getExercise(pendingExerciseId)?.title : ''}” will attach
+                the exercise snapshot and clear the editor. Your other schema sets stay in the sidebar.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep current work</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (pendingExerciseId) commitLoadExercise(pendingExerciseId);
+                  setPendingExerciseId(null);
+                }}
+              >
+                Load exercise
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
