@@ -8,7 +8,6 @@ import {
 import {
   OPERATOR_CONTRACTS,
   areCellValuesEqual,
-  areTuplesEqual,
   deduplicateTuples,
   areRelationsEqual,
   evaluate3VLAnd,
