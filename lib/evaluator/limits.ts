@@ -10,6 +10,8 @@ export const EVALUATION_LIMITS = {
   maxRowOperations: 2_000_000,
   /** Wall-clock budget inside the worker (ms). */
   maxExecutionMs: 15_000,
+  /** Rows retained per relation in step-by-step trace previews (full counts still recorded). */
+  maxTracePreviewRows: 200,
 } as const;
 
 export type EvaluationLimitKey = keyof typeof EVALUATION_LIMITS;

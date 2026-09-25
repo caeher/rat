@@ -8,8 +8,15 @@ The in-browser RA evaluator runs in a dedicated Web Worker with hard caps so exp
 | `maxIntermediateRows` | 25,000 | Any single operator’s materialized row count |
 | `maxRowOperations` | 2,000,000 | Nested-loop pairings (joins, selections, division checks) |
 | `maxExecutionMs` | 15,000 | Wall-clock budget inside the worker |
+| `maxTracePreviewRows` | 200 | Rows retained per relation in step-by-step trace previews |
 
 Constants live in `lib/evaluator/limits.ts`. Override via `EvaluationOptions` for tests only.
+
+## Step-by-step trace
+
+When `captureTrace: true` is passed in `EvaluationOptions` (the sandbox Run action does this), the evaluator records a **postorder** list of `EvaluationStep` objects: each step includes the AST node id, source range, operator symbol, bounded input/output relation previews, tuple counts, and a short explanation. Full evaluation semantics and the final result are unchanged; only UI retention is capped via `maxTracePreviewRows`.
+
+Traces are tied to the immutable snapshot used at Run time. If the expression or schema/data version changes afterward, the sandbox marks results and traces as **stale** until you Run again.
 
 ## Cancellation
 

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Tag } from '@/components/ui/Tag';
 import { QueryResultPanel } from '@/components/sandbox/QueryResultPanel';
+import { EvaluationTracePanel } from '@/components/sandbox/EvaluationTracePanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
   DropdownMenu,
@@ -46,7 +47,7 @@ import { compareAlgebraAndSql } from '@/lib/sql/runtime/compare';
 import { transpileRaAst } from '@/lib/sql';
 import type { DualPathComparison, SqlExecutionOutcome } from '@/lib/sql/runtime';
 import { resolveAssetPath } from '@/lib/paths';
-import type { Diagnostic, RelationSchema, TupleValue } from '@/lib/engine/types';
+import type { Diagnostic, EvaluationStep, RelationSchema, TupleValue } from '@/lib/engine/types';
 import {
   Play,
   RotateCcw,
@@ -58,6 +59,7 @@ import {
   Share2,
   Eraser,
   BookOpen,
+  Footprints,
 } from 'lucide-react';
 
 const DEFAULT_EXPRESSION = 'π name, dept_name ( Employees ⋈ Departments )';
@@ -88,6 +90,8 @@ export default function SandboxPage() {
     translationError?: string;
     comparison?: DualPathComparison;
     algebraError?: string;
+    evaluationSteps?: EvaluationStep[];
+    failedStepNodeId?: string;
   } | null>(null);
 
   const { runEvaluation, cancel, latestRequestIdRef } = useRaEvaluator();
@@ -180,6 +184,7 @@ export default function SandboxPage() {
     const algebraOutcome = await runEvaluation({
       ast: validation.ast,
       relations: snapshot.relations,
+      options: { captureTrace: true },
     });
 
     if (algebraOutcome.requestId !== latestRequestIdRef.current) {
@@ -277,6 +282,8 @@ export default function SandboxPage() {
       translationError: translationReady ? undefined : translationError,
       comparison,
       algebraError,
+      evaluationSteps: algebraOutcome.result.steps,
+      failedStepNodeId: algebraOutcome.result.nodeId,
     });
   }, [
     dataVersion,
@@ -534,6 +541,10 @@ export default function SandboxPage() {
                       <TableIcon className="w-3.5 h-3.5" />
                       Results
                     </TabsTrigger>
+                    <TabsTrigger value="steps" className="gap-1.5">
+                      <Footprints className="w-3.5 h-3.5" />
+                      Steps
+                    </TabsTrigger>
                     <TabsTrigger value="sql" className="gap-1.5">
                       <Code className="w-3.5 h-3.5" />
                       SQL (preview)
@@ -571,6 +582,20 @@ export default function SandboxPage() {
                       loading={isEvaluating}
                     />
                   )}
+                </TabsContent>
+
+                <TabsContent value="steps" className="space-y-3">
+                  <EvaluationTracePanel
+                    expression={executedSnapshot?.expression ?? expression}
+                    steps={executedSnapshot?.evaluationSteps}
+                    failedNodeId={executedSnapshot?.failedStepNodeId}
+                    errorDiagnostic={executedSnapshot?.runtimeDiagnostics.find(
+                      (d) => d.severity === 'error'
+                    )}
+                    isStale={resultsStale}
+                    staleReason={staleReason}
+                    hasRunSnapshot={executedSnapshot !== null}
+                  />
                 </TabsContent>
 
                 <TabsContent value="sql" className="space-y-3">
