@@ -17,6 +17,11 @@ import {
   RelationalAlgebraEditor,
   type RelationalAlgebraEditorHandle,
 } from '@/components/sandbox/RelationalAlgebraEditor';
+import { OperatorPalette, type OperatorPaletteHandle } from '@/components/sandbox/OperatorPalette';
+import {
+  EditorShortcutsDialog,
+  useEditorShortcutsDialog,
+} from '@/components/sandbox/EditorShortcutsDialog';
 import { ExpressionDiagnosticList } from '@/components/sandbox/ExpressionDiagnosticList';
 import { useDebouncedValidation } from '@/lib/editor/useDebouncedValidation';
 import { STARTER_EXAMPLES } from '@/lib/editor/examples';
@@ -30,7 +35,6 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/Dialog';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/Popover';
 import { ClientOnly } from '@/components/common/ClientOnly';
 import { SchemaDesigner } from '@/components/sandbox/SchemaDesigner';
 import { useSandboxState } from '@/lib/sandbox';
@@ -50,18 +54,6 @@ import {
   BookOpen,
 } from 'lucide-react';
 
-const SAMPLE_OPERATORS = [
-  { symbol: 'σ', name: 'Selection', example: 'σ condition (R)', desc: 'Filters tuples satisfying predicate' },
-  { symbol: 'π', name: 'Projection', example: 'π attr1, attr2 (R)', desc: 'Selects specified attributes' },
-  { symbol: 'ρ', name: 'Rename', example: 'ρ NewName (R)', desc: 'Renames relation or attributes' },
-  { symbol: '⋈', name: 'Natural Join', example: 'R ⋈ S', desc: 'Joins on common attribute names' },
-  { symbol: '⨯', name: 'Cartesian Product', example: 'R ⨯ S', desc: 'Combines all tuple pairs' },
-  { symbol: '∪', name: 'Union', example: 'R ∪ S', desc: 'Tuples in R or S (set union)' },
-  { symbol: '−', name: 'Difference', example: 'R − S', desc: 'Tuples in R not in S' },
-  { symbol: '∩', name: 'Intersection', example: 'R ∩ S', desc: 'Tuples in both R and S' },
-  { symbol: '÷', name: 'Division', example: 'R ÷ S', desc: 'Relational division' },
-];
-
 const DEFAULT_EXPRESSION = 'π name, dept_name ( Employees ⋈ Departments )';
 
 export default function SandboxPage() {
@@ -72,6 +64,8 @@ export default function SandboxPage() {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [copied, setCopied] = useState(false);
   const editorRef = useRef<RelationalAlgebraEditorHandle>(null);
+  const paletteRef = useRef<OperatorPaletteHandle>(null);
+  const { open: shortcutsOpen, setOpen: setShortcutsOpen, openShortcuts } = useEditorShortcutsDialog();
   const [executedSnapshot, setExecutedSnapshot] = useState<{
     expression: string;
     dataVersion: number;
@@ -101,9 +95,13 @@ export default function SandboxPage() {
 
   const displayedResult = resultsStale ? null : executedSnapshot?.result ?? null;
 
-  const handleInsertSymbol = (symbol: string) => {
-    editorRef.current?.insertAtCursor(` ${symbol} `);
-  };
+  const handleInsertTemplate = useCallback((template: string) => {
+    editorRef.current?.insertTemplate(template);
+  }, []);
+
+  const handleFocusPalette = useCallback(() => {
+    paletteRef.current?.focus();
+  }, []);
 
   const handleClear = () => {
     setExpression('');
@@ -244,38 +242,7 @@ export default function SandboxPage() {
           </div>
         </div>
 
-        <div className="p-3 bg-[var(--color-card)] border border-[var(--color-outline)]/60 rounded-[4px] flex flex-wrap items-center gap-1.5 sm:gap-2">
-          <span className="text-[12px] font-mono text-[var(--color-ash)] mr-2 select-none w-full sm:w-auto mb-1 sm:mb-0">
-            Insert Operator:
-          </span>
-          {SAMPLE_OPERATORS.map((op) => (
-            <Popover key={op.symbol}>
-              <PopoverTrigger asChild>
-                <button
-                  onClick={() => handleInsertSymbol(op.symbol)}
-                  aria-label={`Insert ${op.name} operator (${op.symbol})`}
-                  className="min-w-[32px] h-[32px] px-2.5 py-1 bg-[var(--color-canvas)] hover:bg-[var(--color-elevated)] border border-[var(--color-outline)]/70 rounded-[3px] font-mono text-[14px] text-[var(--color-text)] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-ink)] cursor-pointer flex items-center justify-center"
-                >
-                  {op.symbol}
-                </button>
-              </PopoverTrigger>
-              <PopoverContent sideOffset={6} className="w-64">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-[14px] font-bold text-[var(--color-ember)]">
-                      {op.symbol}
-                    </span>
-                    <span className="font-medium text-[13px] text-[var(--color-text)]">{op.name}</span>
-                  </div>
-                  <p className="text-[12px] text-[var(--color-driftwood)]">{op.desc}</p>
-                  <div className="font-mono text-[11px] bg-[var(--color-elevated)] px-1.5 py-0.5 rounded-[2px] text-[var(--color-ash)] mt-1 inline-block">
-                    {op.example}
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          ))}
-        </div>
+        <OperatorPalette ref={paletteRef} onInsertTemplate={handleInsertTemplate} />
 
         <SchemaDesigner
           state={state}
@@ -292,11 +259,14 @@ export default function SandboxPage() {
                   <Code className="w-4 h-4 text-[var(--color-ash)]" />
                   Expression Editor
                 </span>
-                <span
-                  className={`text-[11px] font-mono ${validation.valid ? 'text-[var(--color-forest)]' : 'text-[var(--color-ember)]'}`}
-                >
-                  {syntaxLabel}
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <EditorShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+                  <span
+                    className={`text-[11px] font-mono ${validation.valid ? 'text-[var(--color-forest)]' : 'text-[var(--color-ember)]'}`}
+                  >
+                    {syntaxLabel}
+                  </span>
+                </div>
               </div>
 
               <div
@@ -316,9 +286,12 @@ export default function SandboxPage() {
                   value={expression}
                   onChange={setExpression}
                   validation={validation}
+                  schemas={engineSchemas}
+                  onFocusOperatorPalette={handleFocusPalette}
+                  onOpenShortcutsHelp={openShortcuts}
                   id="sandbox-expression-editor"
                   aria-label="Relational algebra expression editor"
-                  aria-describedby="sandbox-diagnostics sandbox-attribute-hints"
+                  aria-describedby="sandbox-diagnostics sandbox-attribute-hints sandbox-shortcuts-summary"
                   placeholder="Enter relational algebra expression, e.g. σ salary > 50000 ( Employees )"
                 />
               </ClientOnly>
@@ -342,6 +315,10 @@ export default function SandboxPage() {
                 Relations: {relationNames.join(', ') || 'none'} · Attributes:{' '}
                 {attributeNames.slice(0, 12).join(', ')}
                 {attributeNames.length > 12 ? '…' : ''}
+              </p>
+              <p id="sandbox-shortcuts-summary" className="sr-only">
+                Press Control Space for autocomplete, Control Shift O to focus the operator palette, or
+                Control slash to open keyboard shortcuts help.
               </p>
 
               <div className="flex items-center justify-between pt-2 flex-wrap gap-2">

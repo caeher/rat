@@ -43,7 +43,7 @@ describe('Static Route Component Rendering', () => {
         name: /Relational Algebra Sandbox/i,
       })
     ).toBeInTheDocument();
-    expect(screen.getByText('Insert Operator:')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Operator palette/i })).toBeInTheDocument();
   });
 
   it('renders ExercisesPage with problem catalogue', () => {
