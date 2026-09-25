@@ -30,6 +30,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/AlertDialog';
 import { EditableRelationTable } from '@/components/sandbox/EditableRelationTable';
+import { PresetPanel } from '@/components/sandbox/PresetPanel';
+import { CsvImportDialog } from '@/components/sandbox/CsvImportDialog';
 import { ClientOnly } from '@/components/common/ClientOnly';
 import {
   SANDBOX_LIMITS,
@@ -302,6 +304,8 @@ export function SchemaDesigner({ state, dispatch, activeSchemaSet, dataVersion }
           </div>
         </div>
 
+        <PresetPanel state={state} activeSchemaSet={activeSchemaSet} dispatch={dispatch} />
+
         <Tabs
           value={selectedRelation?.id ?? activeSchemaSet.relations[0]?.id}
           onValueChange={setSelectedRelationId}
@@ -324,6 +328,11 @@ export function SchemaDesigner({ state, dispatch, activeSchemaSet, dataVersion }
               <Plus className="w-3.5 h-3.5" />
               Relation
             </Button>
+            <CsvImportDialog
+              activeSchemaSet={activeSchemaSet}
+              selectedRelation={selectedRelation}
+              dispatch={dispatch}
+            />
           </div>
 
           {activeSchemaSet.relations.map((relation) => (

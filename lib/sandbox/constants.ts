@@ -9,6 +9,10 @@ export const SANDBOX_LIMITS = {
   maxRelationNameLength: 48,
   maxAttributeNameLength: 48,
   maxSchemaSetNameLength: 64,
+  /** Maximum CSV upload size (bytes), processed locally in the browser. */
+  maxCsvFileBytes: 512_000,
+  /** Rows shown in CSV preview UI (full file may contain more). */
+  maxCsvPreviewRows: 25,
 } as const;
 
 export const SUPPORTED_ATTRIBUTE_TYPES = ['string', 'number', 'boolean', 'date'] as const;
