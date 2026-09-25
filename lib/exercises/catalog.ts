@@ -1,5 +1,6 @@
 import type { Exercise } from './types';
 import { EXERCISE_FORMAT_VERSION } from './types';
+import { UNIVERSITY_MID_GPA_COUNTEREXAMPLE } from './fixtures/universityMidGpaCounterexample';
 
 const v = EXERCISE_FORMAT_VERSION;
 
@@ -30,6 +31,14 @@ export const EXERCISE_LIBRARY: Exercise[] = [
     ],
     explanation:
       'σ gpa >= 3.8 ( Students ) filters the Students relation. Three students meet the threshold. Selection preserves the input schema.',
+    counterexamples: [
+      {
+        id: 'mid-gpa-student',
+        dataset: UNIVERSITY_MID_GPA_COUNTEREXAMPLE,
+        failureMessage:
+          'Your answer matched the visible dataset but fails on a hidden variation with an extra student whose GPA is 3.75. Non-strict comparisons (>= 3.8) differ from strict ones (> 3.7) on that row.',
+      },
+    ],
   },
   {
     formatVersion: v,

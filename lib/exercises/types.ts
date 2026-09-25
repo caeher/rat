@@ -28,6 +28,13 @@ export interface ExerciseHint {
   text: string;
 }
 
+/** Hidden dataset used to reject answers that match only the visible exercise data. */
+export interface ExerciseCounterexample {
+  id: string;
+  dataset: ExerciseDataset;
+  failureMessage: string;
+}
+
 export interface Exercise {
   formatVersion: typeof EXERCISE_FORMAT_VERSION;
   id: string;
@@ -44,6 +51,7 @@ export interface Exercise {
   expectedTuples: Record<string, TupleValue>[];
   hints: ExerciseHint[];
   explanation: string;
+  counterexamples?: ExerciseCounterexample[];
 }
 
 export type ExerciseGradeStatus = 'correct' | 'incorrect' | 'invalid';
