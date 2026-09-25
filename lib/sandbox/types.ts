@@ -13,10 +13,14 @@ export interface SandboxRelation {
   rows: Tuple[];
 }
 
+import type { BundledPresetId } from './presets/types';
+
 export interface SandboxSchemaSet {
   id: string;
   name: string;
   relations: SandboxRelation[];
+  /** When loaded from a bundled educational preset. */
+  presetId?: BundledPresetId;
 }
 
 export interface SandboxState {

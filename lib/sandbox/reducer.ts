@@ -15,6 +15,8 @@ import type {
 } from './types';
 import type { SandboxAttributeType } from './constants';
 import type { Tuple } from '@/lib/engine/types';
+import { createSchemaSetFromPreset, restorePresetRelations } from './presets';
+import type { BundledPresetId } from './presets/types';
 
 export type SandboxAction =
   | { type: 'SET_ACTIVE_SCHEMA_SET'; id: string }
@@ -33,7 +35,17 @@ export type SandboxAction =
   | { type: 'CONFIRM_REMOVE_ATTRIBUTE'; relationId: string; attributeName: string }
   | { type: 'ADD_ROW'; relationId: string }
   | { type: 'UPDATE_ROW'; relationId: string; rowIndex: number; row: Tuple }
-  | { type: 'DELETE_ROW'; relationId: string; rowIndex: number };
+  | { type: 'DELETE_ROW'; relationId: string; rowIndex: number }
+  | { type: 'LOAD_PRESET'; presetId: import('./presets/types').BundledPresetId }
+  | { type: 'RESET_PRESET'; schemaSetId: string }
+  | {
+      type: 'IMPORT_CSV';
+      mode: 'new_relation' | 'replace_relation';
+      relationId?: string;
+      relationName: string;
+      attributes: SandboxRelation['attributes'];
+      rows: Tuple[];
+    };
 
 function bumpVersion(state: SandboxState): SandboxState {
   return { ...state, dataVersion: state.dataVersion + 1 };
@@ -334,6 +346,51 @@ export function sandboxReducer(state: SandboxState, action: SandboxAction): Sand
           rows: rel.rows.filter((_, i) => i !== action.rowIndex),
         }))
       );
+
+    case 'LOAD_PRESET': {
+      if (state.schemaSets.length >= SANDBOX_LIMITS.maxSchemaSets) return state;
+      const loaded = createSchemaSetFromPreset(action.presetId);
+      return bumpVersion({
+        ...state,
+        schemaSets: [...state.schemaSets, loaded],
+        activeSchemaSetId: loaded.id,
+      });
+    }
+
+    case 'RESET_PRESET': {
+      const target = state.schemaSets.find((s) => s.id === action.schemaSetId);
+      if (!target?.presetId) return state;
+      const relations = restorePresetRelations(target.presetId as BundledPresetId);
+      return bumpVersion({
+        ...state,
+        schemaSets: state.schemaSets.map((s) =>
+          s.id === action.schemaSetId ? { ...s, relations } : s
+        ),
+      });
+    }
+
+    case 'IMPORT_CSV':
+      return updateActiveSet(state, (set) => {
+        if (action.mode === 'new_relation') {
+          if (set.relations.length >= SANDBOX_LIMITS.maxRelationsPerSet) return set;
+          const err = validateRelationName(action.relationName, set);
+          if (err) return set;
+          const newRel: SandboxRelation = {
+            id: createId(),
+            name: action.relationName.trim(),
+            attributes: action.attributes.map((a) => ({ ...a })),
+            rows: action.rows.map((row) => ({ ...row })),
+          };
+          return { ...set, relations: [...set.relations, newRel] };
+        }
+
+        if (!action.relationId) return set;
+        return updateRelation(set, action.relationId, (rel) => ({
+          ...rel,
+          attributes: action.attributes.map((a) => ({ ...a })),
+          rows: action.rows.map((row) => ({ ...row })),
+        }));
+      });
 
     default:
       return state;
