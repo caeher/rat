@@ -42,7 +42,7 @@ export function NavigationBar() {
         </div>
 
         {/* Center: Desktop Nav links */}
-        <nav className="hidden md:flex items-center gap-1 sm:gap-2">
+        <nav aria-label="Primary navigation" className="hidden md:flex items-center gap-1 sm:gap-2">
           {navLinks.map((link) => {
             const isActive =
               router.pathname === link.href || router.pathname.startsWith(`${link.href}/`);

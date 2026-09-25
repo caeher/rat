@@ -4,6 +4,7 @@ import * as path from 'path';
 
 describe('Static Site Export Smoke Checks', () => {
   const outDir = path.resolve(process.cwd(), 'out');
+  const expectRoot = process.env.SMOKE_EXPECT_ROOT === '1';
 
   it('verifies that the out directory exists and contains exported pages', () => {
     expect(fs.existsSync(outDir), 'out directory should exist (run build first)').toBe(true);
@@ -22,6 +23,9 @@ describe('Static Site Export Smoke Checks', () => {
     path.join('exercises', 'index.html'),
     path.join('reference', 'index.html'),
     path.join('components', 'index.html'),
+    path.join('quiz', 'index.html'),
+    path.join('quiz', 'ex-begin-selection', 'algebra-to-sql', 'index.html'),
+    path.join('exercises', 'ex-begin-selection', 'index.html'),
   ];
 
   it.each(expectedHtmlRoutes)('exports route file: %s', (relativePath) => {
@@ -47,15 +51,20 @@ describe('Static Site Export Smoke Checks', () => {
     expect(chunkFiles.length).toBeGreaterThan(0);
   });
 
+  it('ships sql.js WASM under public path in export', () => {
+    const wasmDir = path.join(outDir, 'sql-wasm');
+    expect(fs.existsSync(wasmDir), 'out/sql-wasm must exist').toBe(true);
+    const wasmFiles = fs.readdirSync(wasmDir).filter((f) => f.endsWith('.wasm'));
+    expect(wasmFiles.length).toBeGreaterThan(0);
+  });
+
   it('properly prefixes asset URLs with base path in HTML when configured', () => {
     const indexHtmlPath = path.join(outDir, 'index.html');
     const html = fs.readFileSync(indexHtmlPath, 'utf-8');
 
-    // Extract script src attributes
     const scriptSrcMatches = Array.from(html.matchAll(/<script[^>]+src=["']([^"']+)["']/g)).map(
       (m) => m[1]
     );
-    // Extract link href attributes for stylesheets
     const linkHrefMatches = Array.from(
       html.matchAll(/<link[^>]+rel=["']stylesheet["'][^>]+href=["']([^"']+)["']/g)
     ).map((m) => m[1]);
@@ -63,12 +72,17 @@ describe('Static Site Export Smoke Checks', () => {
     const allAssets = [...scriptSrcMatches, ...linkHrefMatches];
     expect(allAssets.length).toBeGreaterThan(0);
 
-    // If built for /rat base path, ensure no raw root /_next/ references exist
-    const hasRatBasePath = allAssets.some((asset) => asset.startsWith('/rat/_next/'));
-    if (hasRatBasePath) {
-      for (const asset of allAssets) {
-        if (asset.includes('/_next/')) {
-          expect(asset.startsWith('/rat/_next/')).toBe(true);
+    if (expectRoot) {
+      const internalNext = allAssets.filter((asset) => asset.includes('/_next/'));
+      expect(internalNext.every((asset) => asset.startsWith('/_next/'))).toBe(true);
+      expect(internalNext.some((asset) => asset.startsWith('/rat/'))).toBe(false);
+    } else {
+      const hasRatBasePath = allAssets.some((asset) => asset.startsWith('/rat/_next/'));
+      if (hasRatBasePath) {
+        for (const asset of allAssets) {
+          if (asset.includes('/_next/')) {
+            expect(asset.startsWith('/rat/_next/')).toBe(true);
+          }
         }
       }
     }
@@ -86,5 +100,8 @@ describe('Static Site Export Smoke Checks', () => {
 
     const referenceHtml = fs.readFileSync(path.join(outDir, 'reference', 'index.html'), 'utf-8');
     expect(referenceHtml).toMatch(/<title[^>]*>.*Reference.*<\/title>/i);
+
+    const quizHtml = fs.readFileSync(path.join(outDir, 'quiz', 'index.html'), 'utf-8');
+    expect(quizHtml).toMatch(/<title[^>]*>.*Quiz/i);
   });
 });

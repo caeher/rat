@@ -91,10 +91,21 @@ rat/
 │   └── globals.css              # LL.md custom properties and Tailwind v4 theme
 ├── test/
 │   ├── setup.ts                 # Vitest testing setup
+│   ├── integration/             # Cross-feature learner workflow tests
+│   ├── a11y/                    # Accessibility regression tests
 │   ├── paths.test.ts            # BasePath and asset resolver test suite
 │   ├── ClientOnly.test.tsx      # Hydration boundary test suite
 │   ├── routes.test.tsx          # Page rendering test suite
 │   └── smoke.test.ts            # Static export & asset path smoke verification
+├── docs/
+│   ├── LANGUAGE_SPEC.md         # Normative RA contract
+│   ├── SQL_DIALECT.md           # Transpiler & quiz SQL subset
+│   ├── BROWSERS.md              # Supported browsers
+│   ├── PRIVACY.md               # Local-only data handling
+│   ├── LIMITATIONS.md           # Known limits
+│   ├── RELEASE_VALIDATION.md    # Issue #22 integrated checklist
+│   ├── SANDBOX_LIMITS.md
+│   └── EVALUATION_LIMITS.md
 ├── next.config.ts               # Static export and basePath configuration
 ├── package.json                 # Pinned dependencies (Next.js 16.3.6, pnpm@11.25.0)
 └── pnpm-workspace.yaml          # PNPM configuration

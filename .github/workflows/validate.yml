@@ -60,3 +60,11 @@ jobs:
 
       - name: Run Static Export Smoke Checks
         run: pnpm test:smoke
+
+      - name: Build static site for root hosting
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_BASE_PATH: ''
+
+      - name: Run root hosting smoke checks
+        run: SMOKE_EXPECT_ROOT=1 pnpm test:smoke
