@@ -1,11 +1,25 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Tag } from '@/components/ui/Tag';
-import { Textarea } from '@/components/ui/Textarea';
 import { DataTable } from '@/components/ui/Table';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/DropdownMenu';
+import {
+  RelationalAlgebraEditor,
+  type RelationalAlgebraEditorHandle,
+} from '@/components/sandbox/RelationalAlgebraEditor';
+import { ExpressionDiagnosticList } from '@/components/sandbox/ExpressionDiagnosticList';
+import { useDebouncedValidation } from '@/lib/editor/useDebouncedValidation';
+import { STARTER_EXAMPLES } from '@/lib/editor/examples';
 import {
   Dialog,
   DialogTrigger,
@@ -32,6 +46,8 @@ import {
   Sparkles,
   Share2,
   AlertTriangle,
+  Eraser,
+  BookOpen,
 } from 'lucide-react';
 
 const SAMPLE_OPERATORS = [
@@ -55,11 +71,15 @@ export default function SandboxPage() {
   const [expression, setExpression] = useState(DEFAULT_EXPRESSION);
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [evaluatedVersion, setEvaluatedVersion] = useState<number | null>(null);
-  const [lastValidResult, setLastValidResult] = useState<{
-    columns: { key: string; header: string; type: 'string' | 'number' | 'boolean' | 'date' }[];
-    rows: Record<string, TupleValue>[];
-    schema?: RelationSchema;
+  const editorRef = useRef<RelationalAlgebraEditorHandle>(null);
+  const [executedSnapshot, setExecutedSnapshot] = useState<{
+    expression: string;
+    dataVersion: number;
+    result: {
+      columns: { key: string; header: string; type: 'string' | 'number' | 'boolean' | 'date' }[];
+      rows: Record<string, TupleValue>[];
+      schema?: RelationSchema;
+    };
   } | null>(null);
 
   const engineSchemas = useMemo(() => {
@@ -67,22 +87,40 @@ export default function SandboxPage() {
     return { ...snapshot.schemas };
   }, [snapshot]);
 
-  const validation = useMemo(
-    () => validateExpression(expression, engineSchemas),
-    [expression, engineSchemas]
-  );
+  const validation = useDebouncedValidation(expression, engineSchemas, dataVersion);
 
-  const resultsStale = evaluatedVersion !== null && evaluatedVersion !== dataVersion;
+  const isEmptyExpression = expression.trim().length === 0;
 
-  useEffect(() => {
-    if (resultsStale) {
-      setLastValidResult(null);
-    }
-  }, [resultsStale, dataVersion]);
+  const editorDiffersFromExecuted =
+    executedSnapshot !== null && executedSnapshot.expression !== expression;
+
+  const schemaDiffersFromExecuted =
+    executedSnapshot !== null && executedSnapshot.dataVersion !== dataVersion;
+
+  const resultsStale = editorDiffersFromExecuted || schemaDiffersFromExecuted;
+
+  const displayedResult = resultsStale ? null : executedSnapshot?.result ?? null;
 
   const handleInsertSymbol = (symbol: string) => {
-    setExpression((prev) => `${prev} ${symbol} `);
+    editorRef.current?.insertAtCursor(` ${symbol} `);
   };
+
+  const handleClear = () => {
+    setExpression('');
+    editorRef.current?.focus();
+  };
+
+  const handleLoadExample = (exampleExpression: string) => {
+    setExpression(exampleExpression);
+    editorRef.current?.focus();
+  };
+
+  const handleJumpToDiagnostic = useCallback(
+    (diagnostic: { range: { start: { offset: number } } }) => {
+      editorRef.current?.scrollToOffset(diagnostic.range.start.offset);
+    },
+    []
+  );
 
   const handleCopy = async () => {
     try {
@@ -94,7 +132,9 @@ export default function SandboxPage() {
     }
   };
 
-  const handleEvaluate = useCallback(() => {
+  const handleRun = useCallback(() => {
+    if (isEmptyExpression || !validation.valid) return;
+
     setIsEvaluating(true);
     const result = validateExpression(expression, engineSchemas);
     window.setTimeout(() => {
@@ -105,24 +145,33 @@ export default function SandboxPage() {
           header: a.name,
           type: a.type === 'null' ? 'string' : a.type,
         }));
-        setLastValidResult({
-          columns,
-          rows: [],
-          schema: result.schema,
+        setExecutedSnapshot({
+          expression,
+          dataVersion,
+          result: {
+            columns,
+            rows: [],
+            schema: result.schema,
+          },
         });
-        setEvaluatedVersion(dataVersion);
       }
     }, 200);
-  }, [dataVersion, engineSchemas, expression]);
+  }, [dataVersion, engineSchemas, expression, isEmptyExpression, validation.valid]);
 
-  const resultColumns = lastValidResult?.columns ?? [];
-  const resultData = lastValidResult?.rows ?? [];
+  const resultColumns = displayedResult?.columns ?? [];
+  const resultData = displayedResult?.rows ?? [];
 
-  const syntaxLabel = validation.valid
-    ? 'Expression valid'
-    : validation.isIncomplete
-      ? 'Incomplete expression'
-      : 'Syntax / schema errors';
+  const syntaxLabel = isEmptyExpression
+    ? 'Empty — enter an expression to validate'
+    : validation.isValidating
+      ? 'Checking expression…'
+      : validation.valid
+        ? 'Expression valid'
+        : validation.isIncomplete
+          ? 'Incomplete expression'
+          : 'Syntax / schema errors';
+
+  const runDisabled = isEmptyExpression || !validation.valid || validation.isValidating;
 
   return (
     <Layout
@@ -151,7 +200,7 @@ export default function SandboxPage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => setExpression(DEFAULT_EXPRESSION)}
+              onClick={() => handleLoadExample(DEFAULT_EXPRESSION)}
               className="gap-1.5"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -250,29 +299,44 @@ export default function SandboxPage() {
                 </span>
               </div>
 
+              <div
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="sr-only"
+              >
+                {syntaxLabel}
+              </div>
+
               <ClientOnly
                 fallback={<div className="h-32 bg-[var(--color-card)] animate-pulse rounded-[4px]" />}
               >
-                <Textarea
+                <RelationalAlgebraEditor
+                  ref={editorRef}
                   value={expression}
-                  onChange={(e) => setExpression(e.target.value)}
-                  rows={4}
-                  mono
+                  onChange={setExpression}
+                  validation={validation}
+                  id="sandbox-expression-editor"
+                  aria-label="Relational algebra expression editor"
+                  aria-describedby="sandbox-diagnostics sandbox-attribute-hints"
                   placeholder="Enter relational algebra expression, e.g. σ salary > 50000 ( Employees )"
-                  aria-describedby="sandbox-attribute-hints"
                 />
               </ClientOnly>
 
-              {validation.diagnostics.length > 0 && (
-                <ul className="text-[12px] text-[var(--color-ember)] space-y-1 font-mono" role="alert">
-                  {validation.diagnostics
-                    .filter((d) => d.severity === 'error')
-                    .slice(0, 4)
-                    .map((d, i) => (
-                      <li key={i}>{d.message}</li>
-                    ))}
-                </ul>
-              )}
+              <ExpressionDiagnosticList
+                id="sandbox-diagnostics"
+                diagnostics={validation.diagnostics}
+                onSelectDiagnostic={handleJumpToDiagnostic}
+                emptyMessage={
+                  isEmptyExpression
+                    ? 'Expression is empty. Type a query or choose a starter example.'
+                    : validation.valid
+                      ? 'No issues found for the current snapshot.'
+                      : validation.isIncomplete
+                        ? 'Keep typing — incomplete expressions are expected while editing.'
+                        : undefined
+                }
+              />
 
               <p id="sandbox-attribute-hints" className="text-[11px] text-[var(--color-ash)] font-mono">
                 Relations: {relationNames.join(', ') || 'none'} · Attributes:{' '}
@@ -283,33 +347,78 @@ export default function SandboxPage() {
               <div className="flex items-center justify-between pt-2 flex-wrap gap-2">
                 <div className="text-[12px] text-[var(--color-driftwood)] flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[var(--color-amber)]" />
-                  <span>Live validation against snapshot v{dataVersion}</span>
+                  <span>
+                    {validation.isValidating
+                      ? 'Validating…'
+                      : `Live validation against snapshot v${dataVersion}`}
+                  </span>
                 </div>
-                <Button
-                  variant="primary"
-                  size="md"
-                  loading={isEvaluating}
-                  loadingText="Evaluating..."
-                  onClick={handleEvaluate}
-                  className="gap-2"
-                  disabled={!validation.valid}
-                >
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  Evaluate Expression
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="md"
+                    onClick={handleClear}
+                    className="gap-1.5"
+                    aria-label="Clear expression editor"
+                  >
+                    <Eraser className="w-3.5 h-3.5" />
+                    Clear
+                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" size="md" className="gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Examples
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-72">
+                      <DropdownMenuLabel>Starter expressions</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      {STARTER_EXAMPLES.map((ex) => (
+                        <DropdownMenuItem
+                          key={ex.id}
+                          onSelect={() => handleLoadExample(ex.expression)}
+                          className="flex flex-col items-start gap-0.5 py-2"
+                        >
+                          <span className="font-medium text-[13px]">{ex.title}</span>
+                          <span className="text-[11px] text-[var(--color-driftwood)] leading-snug">
+                            {ex.description}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <Button
+                    variant="primary"
+                    size="md"
+                    loading={isEvaluating}
+                    loadingText="Running..."
+                    onClick={handleRun}
+                    className="gap-2"
+                    disabled={runDisabled}
+                    aria-disabled={runDisabled}
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    Run
+                  </Button>
+                </div>
               </div>
             </Card>
           </div>
 
           <div className="lg:col-span-5 space-y-6">
             <Card className="p-4 space-y-4">
-              {resultsStale && (
+              {resultsStale && executedSnapshot && (
                 <div
                   className="flex items-start gap-2 p-2 rounded-[4px] bg-[var(--color-elevated)]/80 text-[12px] text-[var(--color-driftwood)]"
                   role="status"
                 >
                   <AlertTriangle className="w-4 h-4 text-[var(--color-amber)] shrink-0 mt-0.5" />
-                  Schema or data changed — previous results were cleared. Re-evaluate to refresh.
+                  {editorDiffersFromExecuted
+                    ? 'Editor text changed since the last run — results are hidden until you run again.'
+                    : 'Schema or data changed — run again to refresh results against the new snapshot.'}
                 </div>
               )}
 
@@ -325,28 +434,30 @@ export default function SandboxPage() {
                       SQL (preview)
                     </TabsTrigger>
                   </TabsList>
-                  {lastValidResult?.schema && (
-                    <Tag variant="forest">{lastValidResult.schema.attributes.length} attrs</Tag>
+                  {displayedResult?.schema && (
+                    <Tag variant="forest">{displayedResult.schema.attributes.length} attrs</Tag>
                   )}
                 </div>
 
                 <TabsContent value="results" className="space-y-3">
-                  {lastValidResult?.schema ? (
+                  {displayedResult?.schema ? (
                     <DataTable
                       columns={resultColumns}
                       data={resultData}
                       loading={isEvaluating}
                       emptyMessage="Evaluation produced a schema; tuple execution ships in a later milestone."
-                      caption={`Output schema for: ${lastValidResult.schema.name}`}
+                      caption={`Output schema for: ${displayedResult.schema.name}`}
                     />
                   ) : (
                     <div className="text-[13px] text-[var(--color-driftwood)] py-6 text-center">
-                      Run a valid expression to see the inferred result schema.
+                      {isEmptyExpression
+                        ? 'Enter an expression, then run to see the inferred result schema.'
+                        : 'Run a valid expression to see the inferred result schema.'}
                     </div>
                   )}
-                  {lastValidResult?.schema && (
+                  {displayedResult?.schema && (
                     <div className="flex flex-wrap gap-2">
-                      {lastValidResult.schema.attributes.map((a) => (
+                      {displayedResult.schema.attributes.map((a) => (
                         <span
                           key={a.name}
                           className="text-[11px] font-mono px-2 py-0.5 rounded-[3px] bg-[var(--color-canvas)] border border-[var(--color-outline)]/60"
