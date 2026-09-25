@@ -3,7 +3,7 @@ import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Tag } from '@/components/ui/Tag';
-import { DataTable } from '@/components/ui/Table';
+import { QueryResultPanel } from '@/components/sandbox/QueryResultPanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/Tabs';
 import {
   DropdownMenu,
@@ -56,7 +56,6 @@ import {
   Code,
   Sparkles,
   Share2,
-  AlertTriangle,
   Eraser,
   BookOpen,
 } from 'lucide-react';
@@ -120,7 +119,12 @@ export default function SandboxPage() {
 
   const resultsStale = editorDiffersFromExecuted || schemaDiffersFromExecuted;
 
-  const displayedResult = resultsStale ? null : executedSnapshot?.result ?? null;
+  const lastRunResult = executedSnapshot?.result ?? null;
+  const staleReason = editorDiffersFromExecuted
+    ? 'Editor text changed since the last run.'
+    : schemaDiffersFromExecuted
+      ? 'Schema or relation data changed since the last run.'
+      : undefined;
 
   const handleInsertTemplate = useCallback((template: string) => {
     editorRef.current?.insertTemplate(template);
@@ -294,9 +298,6 @@ export default function SandboxPage() {
       cancelSql();
     };
   }, [cancel, cancelSql]);
-
-  const resultColumns = displayedResult?.columns ?? [];
-  const resultData = displayedResult?.rows ?? [];
 
   const syntaxLabel = isEmptyExpression
     ? 'Empty — enter an expression to validate'
@@ -526,18 +527,6 @@ export default function SandboxPage() {
 
           <div className="lg:col-span-5 space-y-6">
             <Card className="p-4 space-y-4">
-              {resultsStale && executedSnapshot && (
-                <div
-                  className="flex items-start gap-2 p-2 rounded-[4px] bg-[var(--color-elevated)]/80 text-[12px] text-[var(--color-driftwood)]"
-                  role="status"
-                >
-                  <AlertTriangle className="w-4 h-4 text-[var(--color-amber)] shrink-0 mt-0.5" />
-                  {editorDiffersFromExecuted
-                    ? 'Editor text changed since the last run — results are hidden until you run again.'
-                    : 'Schema or data changed — run again to refresh results against the new snapshot.'}
-                </div>
-              )}
-
               <Tabs defaultValue="results">
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
                   <TabsList>
@@ -550,9 +539,6 @@ export default function SandboxPage() {
                       SQL (preview)
                     </TabsTrigger>
                   </TabsList>
-                  {displayedResult?.schema && (
-                    <Tag variant="forest">{displayedResult.schema.attributes.length} attrs</Tag>
-                  )}
                 </div>
 
                 <TabsContent value="results" className="space-y-3">
@@ -562,54 +548,28 @@ export default function SandboxPage() {
                       onSelectDiagnostic={handleJumpToDiagnostic}
                     />
                   ) : null}
-                  {displayedResult && executedSnapshot?.comparison && (
+                  <QueryResultPanel
+                    schema={lastRunResult?.schema}
+                    rows={lastRunResult?.rows ?? []}
+                    executionTimeMs={lastRunResult?.executionTimeMs}
+                    algebraError={executedSnapshot?.algebraError}
+                    isEvaluating={isEvaluating}
+                    hasRunSnapshot={executedSnapshot !== null}
+                    isStale={resultsStale}
+                    staleReason={staleReason}
+                    hideTableWhenComparison={Boolean(executedSnapshot?.comparison && lastRunResult?.schema)}
+                  />
+                  {lastRunResult?.schema && executedSnapshot?.comparison && (
                     <AlgebraSqlComparisonPanel
-                      algebraSchema={displayedResult.schema}
-                      algebraRows={displayedResult.rows}
-                      algebraTimeMs={displayedResult.executionTimeMs}
+                      algebraSchema={lastRunResult.schema}
+                      algebraRows={lastRunResult.rows}
+                      algebraTimeMs={lastRunResult.executionTimeMs}
                       algebraError={executedSnapshot.algebraError}
                       sqlOutcome={executedSnapshot.sqlOutcome}
                       translationError={executedSnapshot.translationError}
                       comparison={executedSnapshot.comparison}
                       loading={isEvaluating}
                     />
-                  )}
-                  {!executedSnapshot?.comparison &&
-                    (displayedResult?.schema && displayedResult.rows.length > 0 ? (
-                      <DataTable
-                        columns={resultColumns}
-                        data={resultData}
-                        loading={isEvaluating}
-                        emptyMessage="No tuples matched this expression."
-                        caption={`${displayedResult.rowCount ?? displayedResult.rows.length} tuple(s) · ${displayedResult.executionTimeMs ?? 0} ms`}
-                      />
-                    ) : displayedResult?.schema ? (
-                      <DataTable
-                        columns={resultColumns}
-                        data={resultData}
-                        loading={isEvaluating}
-                        emptyMessage="Expression is valid but returned an empty relation."
-                        caption={`0 tuples · ${displayedResult.executionTimeMs ?? 0} ms`}
-                      />
-                    ) : (
-                      <div className="text-[13px] text-[var(--color-driftwood)] py-6 text-center">
-                        {isEmptyExpression
-                          ? 'Enter an expression, then run to evaluate against the snapshot.'
-                          : 'Run a valid expression to see results.'}
-                      </div>
-                    ))}
-                  {displayedResult?.schema && (
-                    <div className="flex flex-wrap gap-2">
-                      {displayedResult.schema.attributes.map((a) => (
-                        <span
-                          key={a.name}
-                          className="text-[11px] font-mono px-2 py-0.5 rounded-[3px] bg-[var(--color-canvas)] border border-[var(--color-outline)]/60"
-                        >
-                          {a.name}: {a.type}
-                          {a.nullable ? '?' : ''}
-                        </span>
-                      ))}
-                    </div>
                   )}
                 </TabsContent>
 
