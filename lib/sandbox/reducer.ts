@@ -38,6 +38,7 @@ export type SandboxAction =
   | { type: 'DELETE_ROW'; relationId: string; rowIndex: number }
   | { type: 'LOAD_PRESET'; presetId: import('./presets/types').BundledPresetId }
   | { type: 'LOAD_LESSON_SCHEMA' }
+  | { type: 'LOAD_EXERCISE_DATASET'; schemaSet: SandboxSchemaSet }
   | { type: 'RESET_PRESET'; schemaSetId: string }
   | {
       type: 'IMPORT_CSV';
@@ -351,6 +352,23 @@ export function sandboxReducer(state: SandboxState, action: SandboxAction): Sand
     case 'LOAD_PRESET': {
       if (state.schemaSets.length >= SANDBOX_LIMITS.maxSchemaSets) return state;
       const loaded = createSchemaSetFromPreset(action.presetId);
+      return bumpVersion({
+        ...state,
+        schemaSets: [...state.schemaSets, loaded],
+        activeSchemaSetId: loaded.id,
+      });
+    }
+
+    case 'LOAD_EXERCISE_DATASET': {
+      if (state.schemaSets.length >= SANDBOX_LIMITS.maxSchemaSets) return state;
+      const loaded = action.schemaSet;
+      const existing = state.schemaSets.find((s) => s.exerciseId === loaded.exerciseId);
+      if (existing) {
+        return bumpVersion({
+          ...state,
+          activeSchemaSetId: existing.id,
+        });
+      }
       return bumpVersion({
         ...state,
         schemaSets: [...state.schemaSets, loaded],

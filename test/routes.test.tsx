@@ -55,7 +55,7 @@ describe('Static Route Component Rendering', () => {
         name: /Relational Algebra Exercises/i,
       })
     ).toBeInTheDocument();
-    expect(screen.getByText('High-Earning Engineers')).toBeInTheDocument();
+    expect(screen.getByText('High achievers')).toBeInTheDocument();
   });
 
   it('renders ReferencePage with operator definitions', () => {
