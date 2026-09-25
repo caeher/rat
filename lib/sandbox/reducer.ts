@@ -49,7 +49,8 @@ export type SandboxAction =
       rows: Tuple[];
     }
   | { type: 'REPLACE_SANDBOX_STATE'; state: SandboxState }
-  | { type: 'RESTORE_SCHEMA_SET_SNAPSHOT'; schemaSet: SandboxSchemaSet };
+  | { type: 'RESTORE_SCHEMA_SET_SNAPSHOT'; schemaSet: SandboxSchemaSet }
+  | { type: 'IMPORT_SHARED_SANDBOX'; mode: 'merge' | 'replace'; state: SandboxState };
 
 function bumpVersion(state: SandboxState): SandboxState {
   return { ...state, dataVersion: state.dataVersion + 1 };
@@ -412,6 +413,26 @@ export function sandboxReducer(state: SandboxState, action: SandboxAction): Sand
 
     case 'REPLACE_SANDBOX_STATE':
       return structuredClone(action.state);
+
+    case 'IMPORT_SHARED_SANDBOX': {
+      const imported = structuredClone(action.state);
+      if (action.mode === 'replace') {
+        return imported;
+      }
+      const room = SANDBOX_LIMITS.maxSchemaSets - state.schemaSets.length;
+      if (room <= 0) return state;
+      const toAdd = imported.schemaSets.slice(0, room);
+      const activeInImport = imported.schemaSets.find((s) => s.id === imported.activeSchemaSetId);
+      const activeId =
+        (activeInImport && toAdd.some((s) => s.id === activeInImport.id) ? activeInImport.id : undefined) ??
+        toAdd[0]?.id;
+      if (!activeId) return state;
+      return bumpVersion({
+        ...state,
+        schemaSets: [...state.schemaSets, ...toAdd],
+        activeSchemaSetId: activeId,
+      });
+    }
 
     case 'RESTORE_SCHEMA_SET_SNAPSHOT': {
       const loaded = action.schemaSet;
