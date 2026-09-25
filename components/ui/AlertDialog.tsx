@@ -30,7 +30,7 @@ export const AlertDialogContent = forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={twMerge(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border border-[var(--color-outline)]/80 bg-[var(--color-card)] p-6 rounded-[8px] shadow-[rgba(38,37,30,0.18)_0px_24px_60px_-12px,rgba(38,37,30,0.08)_0px_12px_24px_-8px] duration-200 focus-visible:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'fixed left-[50%] top-[50%] z-50 grid w-[calc(100vw-2rem)] sm:w-full max-w-md max-h-[90vh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 border border-[var(--color-outline)]/80 bg-[var(--color-card)] p-5 sm:p-6 rounded-[8px] shadow-[rgba(38,37,30,0.18)_0px_24px_60px_-12px,rgba(38,37,30,0.08)_0px_12px_24px_-8px] duration-200 focus-visible:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
         className
       )}
       {...props}
@@ -83,7 +83,7 @@ export const AlertDialogAction = forwardRef<
   <AlertDialogPrimitive.Action
     ref={ref}
     className={twMerge(
-      'inline-flex items-center justify-center rounded-[4px] px-3.5 py-1.5 text-[14px] font-normal transition-colors ' +
+      'inline-flex items-center justify-center whitespace-nowrap shrink-0 rounded-[4px] px-3.5 py-1.5 text-[14px] font-normal transition-colors ' +
         'bg-[var(--color-ink)] text-[var(--color-canvas)] hover:bg-[#3d3b32] ' +
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)] cursor-pointer',
       className
@@ -100,7 +100,7 @@ export const AlertDialogCancel = forwardRef<
   <AlertDialogPrimitive.Cancel
     ref={ref}
     className={twMerge(
-      'inline-flex items-center justify-center rounded-[4px] px-3.5 py-1.5 text-[14px] font-normal transition-colors ' +
+      'inline-flex items-center justify-center whitespace-nowrap shrink-0 rounded-[4px] px-3.5 py-1.5 text-[14px] font-normal transition-colors ' +
         'bg-[var(--color-elevated)] text-[var(--color-text)] hover:bg-[#dcdbd4] border border-[var(--color-outline)]/60 ' +
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)] cursor-pointer',
       className

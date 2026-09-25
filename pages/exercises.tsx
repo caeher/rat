@@ -89,12 +89,12 @@ export default function ExercisesPage() {
         </div>
 
         {/* Category Filter Buttons */}
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Exercise category filters">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2" role="group" aria-label="Exercise category filters">
           {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className={`px-3 py-1.5 rounded-[4px] text-[13px] font-mono transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ink)] cursor-pointer ${
+              className={`px-3 py-1.5 rounded-[4px] text-[13px] font-mono transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ink)] cursor-pointer ${
                 selectedCategory === cat
                   ? 'bg-[var(--color-ink)] text-[var(--color-canvas)] font-medium'
                   : 'bg-[var(--color-card)] text-[var(--color-text)] hover:bg-[var(--color-elevated)] border border-[var(--color-outline)]/60'
@@ -166,12 +166,12 @@ export default function ExercisesPage() {
                   </div>
                 </div>
 
-                <div className="pt-2 flex items-center justify-between border-t border-[var(--color-outline)]/40">
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-[var(--color-outline)]/40">
                   <span className="text-[12px] font-mono text-[var(--color-ash)]">
                     {exercise.category}
                   </span>
-                  <Link href="/sandbox">
-                    <Button variant="secondary" size="sm" className="gap-1.5">
+                  <Link href="/sandbox" className="w-full sm:w-auto">
+                    <Button variant="secondary" size="sm" className="w-full sm:w-auto justify-center gap-1.5">
                       Solve in Sandbox
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Button>

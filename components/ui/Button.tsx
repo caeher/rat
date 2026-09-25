@@ -33,7 +33,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const isDisabled = disabled || loading;
 
     const baseStyles =
-      'inline-flex items-center justify-center font-normal rounded-[4px] transition-colors ' +
+      'inline-flex items-center justify-center font-normal rounded-[4px] transition-colors whitespace-nowrap shrink-0 ' +
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)] ' +
       'disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer';
 

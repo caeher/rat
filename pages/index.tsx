@@ -35,30 +35,30 @@ export default function HomePage() {
             </span>
           </div>
 
-          <h1 className="text-[40px] sm:text-[56px] md:text-[64px] font-normal tracking-[-0.03em] leading-[1.08] text-[var(--color-text)] mb-6">
+          <h1 className="text-[32px] sm:text-[52px] md:text-[64px] font-normal tracking-[-0.03em] leading-[1.1] sm:leading-[1.08] text-[var(--color-text)] mb-6">
             The modern interactive canvas for relational algebra.
           </h1>
 
-          <p className="text-[17px] sm:text-[19px] text-[var(--color-driftwood)] font-serif leading-relaxed mb-8 max-w-[700px]">
+          <p className="text-[16px] sm:text-[19px] text-[var(--color-driftwood)] font-serif leading-relaxed mb-8 max-w-[700px]">
             Write formal relational algebra expressions, inspect step-by-step evaluation trees,
             translate to optimized SQL, and master relational calculus directly inside your browser.
           </p>
 
           {/* Action CTA Stack */}
-          <div className="flex flex-wrap items-center gap-3 mb-12">
-            <Link href="/sandbox">
-              <Button variant="primary" size="lg" className="gap-2">
+          <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3 mb-12">
+            <Link href="/sandbox" className="w-full sm:w-auto">
+              <Button variant="primary" size="lg" className="w-full sm:w-auto gap-2 justify-center">
                 Launch Sandbox
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
-            <Link href="/exercises">
-              <Button variant="secondary" size="lg" className="gap-2">
+            <Link href="/exercises" className="w-full sm:w-auto">
+              <Button variant="secondary" size="lg" className="w-full sm:w-auto gap-2 justify-center">
                 Explore Exercises
               </Button>
             </Link>
-            <Link href="/reference">
-              <Button variant="ghost" size="lg">
+            <Link href="/reference" className="w-full sm:w-auto">
+              <Button variant="ghost" size="lg" className="w-full sm:w-auto justify-center">
                 Operator Reference →
               </Button>
             </Link>

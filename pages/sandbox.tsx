@@ -35,6 +35,9 @@ const SAMPLE_OPERATORS = [
   { symbol: 'π', name: 'Projection', example: 'π attr1, attr2 (R)', desc: 'Selects specified attributes' },
   { symbol: 'ρ', name: 'Rename', example: 'ρ NewName (R)', desc: 'Renames relation or attributes' },
   { symbol: '⋈', name: 'Natural Join', example: 'R ⋈ S', desc: 'Joins on common attribute names' },
+  { symbol: '⟕', name: 'Left Outer Join', example: 'R ⟕ S', desc: 'Preserves all left tuples' },
+  { symbol: '⟖', name: 'Right Outer Join', example: 'R ⟖ S', desc: 'Preserves all right tuples' },
+  { symbol: '⟗', name: 'Full Outer Join', example: 'R ⟗ S', desc: 'Preserves all left and right tuples' },
   { symbol: '⨯', name: 'Cartesian Product', example: 'R ⨯ S', desc: 'Combines all tuple pairs' },
   { symbol: '∪', name: 'Union', example: 'R ∪ S', desc: 'Tuples in R or S (set union)' },
   { symbol: '−', name: 'Difference', example: 'R − S', desc: 'Tuples in R not in S' },
@@ -190,8 +193,8 @@ export default function SandboxPage() {
         </div>
 
         {/* Operator Quick-Insert Toolbar */}
-        <div className="p-3 bg-[var(--color-card)] border border-[var(--color-outline)]/60 rounded-[4px] flex flex-wrap items-center gap-2">
-          <span className="text-[12px] font-mono text-[var(--color-ash)] mr-2 select-none">
+        <div className="p-3 bg-[var(--color-card)] border border-[var(--color-outline)]/60 rounded-[4px] flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <span className="text-[12px] font-mono text-[var(--color-ash)] mr-2 select-none w-full sm:w-auto mb-1 sm:mb-0">
             Insert Operator:
           </span>
           {SAMPLE_OPERATORS.map((op) => (
@@ -199,7 +202,8 @@ export default function SandboxPage() {
               <PopoverTrigger asChild>
                 <button
                   onClick={() => handleInsertSymbol(op.symbol)}
-                  className="px-2.5 py-1 bg-[var(--color-canvas)] hover:bg-[var(--color-elevated)] border border-[var(--color-outline)]/70 rounded-[3px] font-mono text-[14px] text-[var(--color-text)] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-ink)] cursor-pointer"
+                  aria-label={`Insert ${op.name} operator (${op.symbol})`}
+                  className="min-w-[32px] h-[32px] px-2.5 py-1 bg-[var(--color-canvas)] hover:bg-[var(--color-elevated)] border border-[var(--color-outline)]/70 rounded-[3px] font-mono text-[14px] text-[var(--color-text)] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-ink)] cursor-pointer flex items-center justify-center"
                 >
                   {op.symbol}
                 </button>
@@ -311,7 +315,7 @@ export default function SandboxPage() {
           <div className="lg:col-span-5 space-y-6">
             <Card className="p-4 space-y-4">
               <Tabs defaultValue="results">
-                <div className="flex items-center justify-between pb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
                   <TabsList>
                     <TabsTrigger value="results" className="gap-1.5">
                       <TableIcon className="w-3.5 h-3.5" />
