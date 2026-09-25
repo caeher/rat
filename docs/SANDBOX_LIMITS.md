@@ -8,6 +8,8 @@ RAT keeps all learner-defined schemas and relation data in memory. These limits 
 | Relations per schema | 12 |
 | Attributes per relation | 16 |
 | Rows per relation | 200 |
+| RA evaluation output rows | 10,000 |
+| RA intermediate rows (single operator) | 25,000 |
 | Relation name length | 48 characters |
 | Attribute name length | 48 characters |
 | Schema collection name length | 64 characters |

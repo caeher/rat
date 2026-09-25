@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -38,8 +38,8 @@ import {
 import { ClientOnly } from '@/components/common/ClientOnly';
 import { SchemaDesigner } from '@/components/sandbox/SchemaDesigner';
 import { useSandboxState } from '@/lib/sandbox';
-import { validateExpression } from '@/lib/engine/validator';
-import type { RelationSchema, TupleValue } from '@/lib/engine/types';
+import { useRaEvaluator } from '@/lib/evaluator/useRaEvaluator';
+import type { Diagnostic, RelationSchema, TupleValue } from '@/lib/engine/types';
 import {
   Play,
   RotateCcw,
@@ -69,12 +69,18 @@ export default function SandboxPage() {
   const [executedSnapshot, setExecutedSnapshot] = useState<{
     expression: string;
     dataVersion: number;
+    requestId: number;
     result: {
       columns: { key: string; header: string; type: 'string' | 'number' | 'boolean' | 'date' }[];
       rows: Record<string, TupleValue>[];
       schema?: RelationSchema;
+      rowCount?: number;
+      executionTimeMs?: number;
     };
+    runtimeDiagnostics: Diagnostic[];
   } | null>(null);
+
+  const { runEvaluation, cancel, latestRequestIdRef } = useRaEvaluator();
 
   const engineSchemas = useMemo(() => {
     if (!snapshot) return {};
@@ -130,31 +136,76 @@ export default function SandboxPage() {
     }
   };
 
-  const handleRun = useCallback(() => {
-    if (isEmptyExpression || !validation.valid) return;
+  const handleRun = useCallback(async () => {
+    if (isEmptyExpression || !validation.valid || !validation.ast || !snapshot) return;
 
     setIsEvaluating(true);
-    const result = validateExpression(expression, engineSchemas);
-    window.setTimeout(() => {
+    setExecutedSnapshot(null);
+
+    const outcome = await runEvaluation({
+      ast: validation.ast,
+      relations: snapshot.relations,
+    });
+
+    if (outcome.requestId !== latestRequestIdRef.current) {
       setIsEvaluating(false);
-      if (result.valid && result.schema) {
-        const columns = result.schema.attributes.map((a) => ({
-          key: a.name,
-          header: a.name,
-          type: a.type === 'null' ? 'string' : a.type,
-        }));
-        setExecutedSnapshot({
-          expression,
-          dataVersion,
-          result: {
-            columns,
-            rows: [],
-            schema: result.schema,
-          },
-        });
-      }
-    }, 200);
-  }, [dataVersion, engineSchemas, expression, isEmptyExpression, validation.valid]);
+      return;
+    }
+
+    setIsEvaluating(false);
+
+    if (!outcome.result.success || !outcome.result.schema) {
+      setExecutedSnapshot({
+        expression,
+        dataVersion,
+        requestId: outcome.requestId,
+        result: {
+          columns: [],
+          rows: [],
+          schema: outcome.result.schema,
+        },
+        runtimeDiagnostics: outcome.result.diagnostics,
+      });
+      return;
+    }
+
+    const schema = outcome.result.schema;
+    const columns = schema.attributes.map((a) => ({
+      key: a.name,
+      header: a.name,
+      type: (a.type === 'null' ? 'string' : a.type) as 'string' | 'number' | 'boolean' | 'date',
+    }));
+    const rows = outcome.result.relation?.tuples ?? [];
+
+    setExecutedSnapshot({
+      expression,
+      dataVersion,
+      requestId: outcome.requestId,
+      result: {
+        columns,
+        rows,
+        schema,
+        rowCount: rows.length,
+        executionTimeMs: outcome.result.executionTimeMs,
+      },
+      runtimeDiagnostics: outcome.result.diagnostics,
+    });
+  }, [
+    dataVersion,
+    expression,
+    isEmptyExpression,
+    latestRequestIdRef,
+    runEvaluation,
+    snapshot,
+    validation.ast,
+    validation.valid,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      cancel();
+    };
+  }, [cancel]);
 
   const resultColumns = displayedResult?.columns ?? [];
   const resultData = displayedResult?.rows ?? [];
@@ -404,7 +455,7 @@ export default function SandboxPage() {
                   <TabsList>
                     <TabsTrigger value="results" className="gap-1.5">
                       <TableIcon className="w-3.5 h-3.5" />
-                      Inferred schema
+                      Results
                     </TabsTrigger>
                     <TabsTrigger value="sql" className="gap-1.5">
                       <Code className="w-3.5 h-3.5" />
@@ -417,19 +468,33 @@ export default function SandboxPage() {
                 </div>
 
                 <TabsContent value="results" className="space-y-3">
-                  {displayedResult?.schema ? (
+                  {executedSnapshot?.runtimeDiagnostics.length ? (
+                    <ExpressionDiagnosticList
+                      diagnostics={executedSnapshot.runtimeDiagnostics}
+                      onSelectDiagnostic={handleJumpToDiagnostic}
+                    />
+                  ) : null}
+                  {displayedResult?.schema && displayedResult.rows.length > 0 ? (
                     <DataTable
                       columns={resultColumns}
                       data={resultData}
                       loading={isEvaluating}
-                      emptyMessage="Evaluation produced a schema; tuple execution ships in a later milestone."
-                      caption={`Output schema for: ${displayedResult.schema.name}`}
+                      emptyMessage="No tuples matched this expression."
+                      caption={`${displayedResult.rowCount ?? displayedResult.rows.length} tuple(s) · ${displayedResult.executionTimeMs ?? 0} ms`}
+                    />
+                  ) : displayedResult?.schema ? (
+                    <DataTable
+                      columns={resultColumns}
+                      data={resultData}
+                      loading={isEvaluating}
+                      emptyMessage="Expression is valid but returned an empty relation."
+                      caption={`0 tuples · ${displayedResult.executionTimeMs ?? 0} ms`}
                     />
                   ) : (
                     <div className="text-[13px] text-[var(--color-driftwood)] py-6 text-center">
                       {isEmptyExpression
-                        ? 'Enter an expression, then run to see the inferred result schema.'
-                        : 'Run a valid expression to see the inferred result schema.'}
+                        ? 'Enter an expression, then run to evaluate against the snapshot.'
+                        : 'Run a valid expression to see results.'}
                     </div>
                   )}
                   {displayedResult?.schema && (
