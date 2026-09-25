@@ -118,7 +118,11 @@ export type DiagnosticCode =
   | 'W_VACUOUS_EMPTY_DIVISOR'
   | 'W_CROSS_PRODUCT_DUPLICATE_NAMES'
   | 'W_POSSIBLE_NULL_FILTER'
-  | 'I_DUPLICATES_ELIMINATED';
+  | 'I_DUPLICATES_ELIMINATED'
+  // Runtime evaluation errors (browser evaluator)
+  | 'E_RUNTIME_LIMIT'
+  | 'E_RUNTIME_ABORTED'
+  | 'E_RUNTIME_ERROR';
 
 export interface DiagnosticSuggestion {
   title: string;
@@ -429,8 +433,17 @@ export interface EvaluationStep {
 
 export interface EvaluationOptions {
   strictTypeChecking?: boolean;
-  maxTuples?: number;
+  /** Maximum distinct output tuples (never returned partially when exceeded). */
+  maxOutputRows?: number;
+  /** Maximum tuples materialized in a single intermediate operator result. */
+  maxIntermediateRows?: number;
+  /** Budget for nested-loop row comparisons / pairings. */
+  maxRowOperations?: number;
+  /** Wall-clock budget for evaluation (ms). */
+  maxExecutionMs?: number;
   nullEqualityInSetOps?: boolean; // Defaults to true under standard set semantics
+  /** @deprecated Use maxOutputRows */
+  maxTuples?: number;
 }
 
 export interface QueryExecutionResult {
