@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+@theme {
+  /* Semantic Surface & Base Colors */
+  --color-canvas: #f7f7f4;
+  --color-card: #f2f1ed;
+  --color-elevated: #e6e5e0;
+  --color-outline: #cdcdc9;
+  --color-text: #26251e;
+  --color-accent: #f54e00;
+
+  /* Parchment Atelier Palette */
+  --color-parchment: #f7f7f4;
+  --color-bone: #f2f1ed;
+  --color-linen: #e6e5e0;
+  --color-stone: #cdcdc9;
+  --color-mist: #a1a19f;
+  --color-driftwood: #84847e;
+  --color-ash: #7a7974;
+  --color-ink: #26251e;
+  --color-ember: #f54e00;
+  --color-amber: #c08532;
+  --color-forest: #34785c;
+  --color-verdant: #1f8a65;
+  --color-crimson: #cf2d56;
+
+  /* Neutral Typography Stacks */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: 'EB Garamond', Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-ui: var(--font-sans);
+  --font-prose: var(--font-serif);
+  --font-code: var(--font-mono);
+
+  /* Typography Scale */
+  --text-eyebrow: 12px;
+  --leading-eyebrow: 1.63;
+  --text-body-sm: 14px;
+  --leading-body-sm: 1.5;
+  --tracking-body-sm: 0.01em;
+  --text-heading-sm: 22px;
+  --leading-heading-sm: 1.3;
+  --tracking-heading-sm: -0.005em;
+  --text-heading: 26px;
+  --leading-heading: 1.25;
+  --tracking-heading: -0.012em;
+  --text-heading-lg: 36px;
+  --leading-heading-lg: 1.2;
+  --tracking-heading-lg: -0.02em;
+  --text-display: 72px;
+  --leading-display: 1.1;
+  --tracking-display: -0.03em;
+
+  /* Spacing Scale (4px base) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-14: 56px;
+  --spacing-16: 64px;
+
+  /* Standardized Border Radii */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Shadows (Paper-like elevation) */
+  --shadow-subtle: 0 1px 2px 0 rgba(38, 37, 30, 0.04);
+  --shadow-card: 0 2px 8px 0 rgba(38, 37, 30, 0.04);
+  --shadow-popover: 0 8px 24px -4px rgba(38, 37, 30, 0.08), 0 2px 6px -1px rgba(38, 37, 30, 0.04);
+  --shadow-dialog: 0 24px 60px -12px rgba(38, 37, 30, 0.18), 0 12px 24px -8px rgba(38, 37, 30, 0.08);
+}
+
+:root {
+  /* Surface Tokens */
+  --surface-canvas: #f7f7f4;
+  --surface-card: #f2f1ed;
+  --surface-elevated: #e6e5e0;
+  --surface-outline: #cdcdc9;
+
+  /* Color Tokens */
+  --color-canvas: #f7f7f4;
+  --color-card: #f2f1ed;
+  --color-elevated: #e6e5e0;
+  --color-outline: #cdcdc9;
+  --color-text: #26251e;
+  --color-accent: #f54e00;
+
+  --color-parchment: #f7f7f4;
+  --color-bone: #f2f1ed;
+  --color-linen: #e6e5e0;
+  --color-stone: #cdcdc9;
+  --color-mist: #a1a19f;
+  --color-driftwood: #84847e;
+  --color-ash: #7a7974;
+  --color-ink: #26251e;
+  --color-ember: #f54e00;
+  --color-amber: #c08532;
+  --color-forest: #34785c;
+  --color-verdant: #1f8a65;
+  --color-crimson: #cf2d56;
+
+  /* Typography Stacks */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: 'EB Garamond', Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-ui: var(--font-sans);
+  --font-prose: var(--font-serif);
+  --font-code: var(--font-mono);
+
+  /* Aliases for LL.md compatibility */
+  --font-cursorgothic: var(--font-sans);
+  --font-eb-garamond: var(--font-serif);
+  --font-berkeleymono: var(--font-mono);
+  --font-system-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Layout */
+  --page-max-width: 1300px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background-color: #8BC4F8;
+  color: var(--color-ink);
+}
+
+html,
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reduced-motion support across the application */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Focus-visible utility ring */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-ink);
+  outline-offset: 2px;
+}
+
+/* Custom Scrollbars to match Parchment atelier theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-canvas);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-stone);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-driftwood);
+}
