@@ -81,6 +81,37 @@ export const raEditorTheme = EditorView.theme(
     '.cm-lint-marker-error': {
       color: 'var(--color-crimson)',
     },
+    '.cm-tooltip.cm-completionInfo': {
+      backgroundColor: 'var(--color-card)',
+      border: '1px solid color-mix(in srgb, var(--color-outline) 70%, transparent)',
+      color: 'var(--color-text)',
+      fontFamily: 'var(--font-mono)',
+      fontSize: '12px',
+    },
+    '.cm-tooltip.cm-completionIcon': {
+      display: 'none',
+    },
+    '.cm-tooltip-autocomplete': {
+      backgroundColor: 'var(--color-card)',
+      border: '1px solid color-mix(in srgb, var(--color-outline) 70%, transparent)',
+      borderRadius: '4px',
+      fontFamily: 'var(--font-mono)',
+      fontSize: '12px',
+      '& > ul > li[aria-selected]': {
+        backgroundColor: 'var(--color-elevated)',
+        color: 'var(--color-text)',
+      },
+      '& > ul > li': {
+        padding: '4px 8px',
+      },
+    },
+    '.cm-completionLabel': {
+      fontFamily: 'var(--font-mono)',
+    },
+    '.cm-completionDetail': {
+      color: 'var(--color-ash)',
+      fontStyle: 'normal',
+    },
   },
   { dark: false }
 );

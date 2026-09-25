@@ -15,14 +15,19 @@ import {
   drawSelection,
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { completionKeymap } from '@codemirror/autocomplete';
 import { lintGutter, forceLinting } from '@codemirror/lint';
-import type { ValidationResult } from '@/lib/engine/types';
+import type { RelationSchema, ValidationResult } from '@/lib/engine/types';
 import { raEditorTheme } from '@/lib/editor/raTheme';
 import { raSyntaxHighlight } from '@/lib/editor/raHighlight';
 import { createRaLinter } from '@/lib/editor/raLinter';
+import { prepareTemplate, firstPlaceholderSelection } from '@/lib/editor/insertTemplate';
+import { createRaCompletion } from '@/lib/editor/raCompletion';
+import { createRaEditorKeymap } from '@/lib/editor/raEditorKeymap';
 
 export interface RelationalAlgebraEditorHandle {
   insertAtCursor: (text: string) => void;
+  insertTemplate: (template: string) => void;
   focus: () => void;
   scrollToOffset: (offset: number) => void;
 }
@@ -31,10 +36,13 @@ export interface RelationalAlgebraEditorProps {
   value: string;
   onChange: (value: string) => void;
   validation: ValidationResult;
+  schemas: Record<string, RelationSchema>;
   id?: string;
   'aria-label'?: string;
   'aria-describedby'?: string;
   placeholder?: string;
+  onFocusOperatorPalette?: () => void;
+  onOpenShortcutsHelp?: () => boolean;
 }
 
 export const RelationalAlgebraEditor = forwardRef<
@@ -45,10 +53,13 @@ export const RelationalAlgebraEditor = forwardRef<
     value,
     onChange,
     validation,
+    schemas,
     id,
     'aria-label': ariaLabel,
     'aria-describedby': ariaDescribedBy,
     placeholder,
+    onFocusOperatorPalette,
+    onOpenShortcutsHelp,
   },
   ref
 ) {
@@ -57,8 +68,17 @@ export const RelationalAlgebraEditor = forwardRef<
   const validationRef = useRef(validation);
   validationRef.current = validation;
 
+  const schemasRef = useRef(schemas);
+  schemasRef.current = schemas;
+
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+
+  const paletteRef = useRef(onFocusOperatorPalette);
+  paletteRef.current = onFocusOperatorPalette;
+
+  const shortcutsRef = useRef(onOpenShortcutsHelp);
+  shortcutsRef.current = onOpenShortcutsHelp;
 
   const extensions = useMemo((): Extension[] => {
     return [
@@ -67,7 +87,19 @@ export const RelationalAlgebraEditor = forwardRef<
       highlightActiveLine(),
       drawSelection(),
       history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      createRaCompletion({
+        getSchemas: () => schemasRef.current,
+        getIsIncomplete: () => validationRef.current.isIncomplete,
+      }),
+      keymap.of([
+        ...defaultKeymap,
+        ...historyKeymap,
+        ...completionKeymap,
+      ]),
+      createRaEditorKeymap({
+        onFocusOperatorPalette: () => paletteRef.current?.(),
+        onOpenShortcutsHelp: () => shortcutsRef.current?.() ?? false,
+      }),
       raEditorTheme,
       raSyntaxHighlight,
       lintGutter(),
@@ -91,16 +123,31 @@ export const RelationalAlgebraEditor = forwardRef<
     ];
   }, [ariaDescribedBy, ariaLabel, id]);
 
+  const dispatchInsert = (view: EditorView, insertText: string, selection?: { anchor: number; head?: number }) => {
+    const { from, to } = view.state.selection.main;
+    const anchor = selection?.anchor ?? from + insertText.length;
+    const head = selection?.head ?? anchor;
+    view.dispatch({
+      changes: { from, to, insert: insertText },
+      selection: { anchor, head },
+      scrollIntoView: true,
+    });
+    view.focus();
+  };
+
   useImperativeHandle(ref, () => ({
     insertAtCursor(text: string) {
       const view = viewRef.current;
       if (!view) return;
-      const { from, to } = view.state.selection.main;
-      view.dispatch({
-        changes: { from, to, insert: text },
-        selection: { anchor: from + text.length },
-      });
-      view.focus();
+      dispatchInsert(view, text);
+    },
+    insertTemplate(template: string) {
+      const view = viewRef.current;
+      if (!view) return;
+      const prepared = prepareTemplate(template);
+      const { from } = view.state.selection.main;
+      const selection = firstPlaceholderSelection(from, prepared);
+      dispatchInsert(view, prepared.text, selection ?? { anchor: from + prepared.text.length });
     },
     focus() {
       viewRef.current?.focus();
